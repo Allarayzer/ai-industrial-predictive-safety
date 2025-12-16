@@ -1,5 +1,4 @@
-# ai-industrial-predictive-safety
-AI-based predictive safety system for high-risk industrial facilities
+
 # AI-Based Predictive Safety System for High-Risk Industrial Facilities
 
 ## Overview
