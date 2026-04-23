@@ -97,33 +97,30 @@ def run_one_method(
         "predict_time_sec": round(predict_time, 3),
     }
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--degradation-horizon", type=int, default=30,
-        help="Cycles labelled as degraded at the end of each engine.",
-    )
-    parser.add_argument(
-        "--window-size", type=int, default=32,
-        help="Analysis window length for the detectors.",
-    )
-    parser.add_argument(
-        "--skip-lstm", action="store_true",
-        help="Skip LSTM-based methods (useful without tensorflow).",
-    )
-    args = parser.parse_args()
-    train_path = DATA_DIR / "train_FD001.txt"
+def run_subset(
+    subset: str,
+    args,
+) -> list[dict]:
+    """Run all configured detectors on a single C-MAPSS subset.
+
+    Returns a list of result dicts, each annotated with the ``subset`` key
+    so the caller can concatenate across FD001..FD004.
+    """
+    train_path = DATA_DIR / f"train_{subset}.txt"
     if not train_path.exists():
-        print(f"Dataset not found at {train_path}. See docs/benchmarks.md.")
-        return 1
-    print(f"Loading C-MAPSS FD001 from {train_path}...")
+        print(f"[{subset}] Dataset not found at {train_path}. Skipping.")
+        return []
+
+    print(f"\n===== {subset} =====")
+    print(f"Loading {train_path.name}...")
     df = load_cmapss_fd001(train_path)
-    print(f"Loaded {len(df)} rows covering {df['unit'].nunique()} engine units.")
+    print(f"  {len(df)} rows, {df['unit'].nunique()} engine units.")
     labels = make_labels(df, degradation_horizon=args.degradation_horizon)
     print(
-        f"Positive labels: {int(labels.sum())}/{len(labels)} "
+        f"  Positive labels: {int(labels.sum())}/{len(labels)} "
         f"({100 * labels.mean():.1f}%)"
     )
+
     feature_cols = SELECTED_SENSORS
     train_mask = np.zeros(len(df), dtype=bool)
     for _, group in df.groupby("unit"):
@@ -132,8 +129,7 @@ def main() -> int:
     train_df = df.loc[train_mask, feature_cols].reset_index(drop=True)
     test_df = df.loc[:, feature_cols].reset_index(drop=True)
     test_labels = labels
-    print(f"Training windows drawn from {len(train_df)} healthy rows.")
-    print(f"Evaluating on {len(test_df)} rows total.")
+
     rows: list[dict] = []
     rows.append(
         run_one_method(
@@ -176,21 +172,74 @@ def main() -> int:
                 )
             )
         except ImportError as exc:
-            print(f"Skipping LSTM/hybrid: {exc}")
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RESULTS_DIR / "cmapss_fd001_results.csv"
-    with out_path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
-    print(f"\nResults written to {out_path}\n")
+            print(f"  Skipping LSTM/hybrid: {exc}")
+
+    # Annotate and return.
     for row in rows:
+        row["subset"] = subset
+    return rows
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--degradation-horizon", type=int, default=30,
+        help="Cycles labelled as degraded at the end of each engine.",
+    )
+    parser.add_argument(
+        "--window-size", type=int, default=32,
+        help="Analysis window length for the detectors.",
+    )
+    parser.add_argument(
+        "--skip-lstm", action="store_true",
+        help="Skip LSTM-based methods (useful without tensorflow).",
+    )
+    parser.add_argument(
+        "--subsets", type=str, default="FD001,FD002,FD003,FD004",
+        help="Comma-separated list of C-MAPSS subsets to evaluate.",
+    )
+    args = parser.parse_args()
+
+    all_rows: list[dict] = []
+    for subset in args.subsets.split(","):
+        subset = subset.strip()
+        if not subset:
+            continue
+        all_rows.extend(run_subset(subset, args))
+
+    if not all_rows:
+        print("No results produced.")
+        return 1
+
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    # Per-subset files for backward compatibility with run_cmapss_benchmark
+    # callers that assume FD001-only output.
+    for subset in set(r["subset"] for r in all_rows):
+        subset_rows = [r for r in all_rows if r["subset"] == subset]
+        out = RESULTS_DIR / f"cmapss_{subset.lower()}_results.csv"
+        with out.open("w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=list(subset_rows[0].keys()))
+            writer.writeheader()
+            writer.writerows(subset_rows)
+
+    # Unified CSV across subsets (useful for LaTeX aggregation).
+    out_all = RESULTS_DIR / "cmapss_all_subsets.csv"
+    with out_all.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(all_rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(all_rows)
+
+    print(f"\nPer-subset CSVs in {RESULTS_DIR}/")
+    print(f"Combined CSV: {out_all}\n")
+    print(f"{'subset':<8}{'method':<32}{'F1':>8}{'prec':>8}{'rec':>8}{'FAR':>8}")
+    for row in all_rows:
         print(
-            f"  {row['method']:<30s} "
-            f"F1={row['f1']:.3f}  "
-            f"prec={row['precision']:.3f}  "
-            f"rec={row['recall']:.3f}  "
-            f"FAR={row['false_alarm_rate']:.3f}"
+            f"{row['subset']:<8}"
+            f"{row['method']:<32}"
+            f"{row['f1']:>8.3f}"
+            f"{row['precision']:>8.3f}"
+            f"{row['recall']:>8.3f}"
+            f"{row['false_alarm_rate']:>8.3f}"
         )
     return 0
 
