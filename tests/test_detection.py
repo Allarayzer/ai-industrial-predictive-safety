@@ -2,8 +2,8 @@
 import numpy as np
 import pandas as pd
 import pytest
-from ai_cta.detection import IsolationForestDetector
-from ai_cta.utils.data import (
+from ai_cta.anomaly_detector import IsolationForestDetector
+from ai_cta.data import (
     generate_synthetic_stream,
     inject_anomalies,
 )

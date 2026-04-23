@@ -18,26 +18,26 @@ Main components
 """
 from ai_cta._version import __version__
 # Detection
-from ai_cta.detection.isolation_forest_detector import IsolationForestDetector
-from ai_cta.detection.lstm_detector import LSTMDetector
-from ai_cta.detection.hybrid_detector import HybridDetector
+from ai_cta.anomaly_detector import IsolationForestDetector
+from ai_cta.anomaly_detector import LSTMDetector
+from ai_cta.anomaly_detector import HybridDetector
 # Features
-from ai_cta.features.extractors import (
+from ai_cta.preprocess import (
     StatisticalFeatureExtractor,
     RollingWindowFeatureExtractor,
     FrequencyDomainFeatureExtractor,
 )
 # Risk
-from ai_cta.risk.scoring import RiskScorer, ChannelLimits, RiskLevel
-from ai_cta.risk.conformal import ConformalThresholdCalibrator
-from ai_cta.risk.aggregator import RiskAggregator
+from ai_cta.risk_model import RiskScorer, ChannelLimits, RiskLevel
+from ai_cta.risk_model import ConformalThresholdCalibrator
+from ai_cta.risk_model import RiskAggregator
 # Prognostics
-from ai_cta.prognostics.rul_estimator import RULEstimator
-from ai_cta.prognostics.neural_risk_estimator import NeuralRiskEstimator
-from ai_cta.prognostics.drift_detector import DriftDetector, DriftReport
-from ai_cta.prognostics.calibration import OnlineCalibrator, CalibrationUpdate
+from ai_cta.rul_estimator import RULEstimator
+from ai_cta.risk_model import NeuralRiskEstimator
+from ai_cta.drift_detector import DriftDetector, DriftReport
+from ai_cta.calibration import OnlineCalibrator, CalibrationUpdate
 # Streaming
-from ai_cta.streaming.pipeline import SafetyPipeline, PipelineEvent
+from ai_cta.pipeline import SafetyPipeline, PipelineEvent
 __all__ = [
     "__version__",
     # Detection

@@ -102,8 +102,8 @@ from ai_cta import (
     SafetyPipeline,
     ConformalThresholdCalibrator,
 )
-from ai_cta.risk.scoring import ChannelLimits
-from ai_cta.utils import generate_synthetic_stream, inject_anomalies
+from ai_cta.risk_model import ChannelLimits
+from ai_cta.data import generate_synthetic_stream, inject_anomalies
 # 1. Prepare training and evaluation data
 train = generate_synthetic_stream(n_samples=2000, random_state=0)
 test, labels = inject_anomalies(
@@ -142,48 +142,100 @@ A reference REST service wraps the pipeline (see monograph § 10.8):
 ```bash
 pip install -e ".[api]"
 uvicorn api.main:app --host 0.0.0.0 --port 8000
-# Try it
-curl -X POST http://localhost:8000/score \
+# Canonical single-sample predict (book § 10.8)
+curl -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
   -d '{"temperature": 52.3, "vibration": 0.34, "pressure": 1.02}'
+# Alias (same handler, legacy spelling)
+curl -X POST http://localhost:8000/score ...
 ```
 Interactive Swagger documentation at `http://localhost:8000/docs`.
 See [`api/README.md`](api/README.md) for full details.
 ## Docker
-A reference container stack (API + n8n + Postgres + Redis) is provided:
+A 9-container reference stack (monograph § 12.5) is provided:
+API, Postgres, Redis, n8n, MLflow, Grafana, Prometheus, InfluxDB, and
+a telemetry simulator.
 ```bash
+# Full stack (~8 GB RAM)
 docker compose -f docker/docker-compose.yml up --build
+# Minimal 4-service subset for local development
+docker compose -f docker/docker-compose.yml up api postgres redis n8n
 ```
 See [`docker/README.md`](docker/README.md) for the deployment guide.
 ## Benchmarks
+
 Reproducible evaluation scripts are provided for two widely-used public
-datasets in the predictive-maintenance literature:
-| Dataset | Task | Script |
-|---------|------|--------|
-| NASA C-MAPSS (FD001) | Turbofan remaining useful life / degradation flag | [`benchmarks/run_cmapss_benchmark.py`](benchmarks/run_cmapss_benchmark.py) |
-| CWRU Bearing | Bearing fault classification | [`benchmarks/run_cwru_benchmark.py`](benchmarks/run_cwru_benchmark.py) |
-Download the data first (see [`docs/benchmarks.md`](docs/benchmarks.md)),
-then run:
+datasets in the predictive-maintenance literature, plus ablation and
+baseline-comparison scripts for Scopus-paper reviewers.
+
+| Script | Purpose |
+|--------|---------|
+| [`benchmarks/run_cmapss_benchmark.py`](benchmarks/run_cmapss_benchmark.py) | NASA C-MAPSS (FD001–FD004) — turbofan RUL / degradation flag |
+| [`benchmarks/run_cwru_benchmark.py`](benchmarks/run_cwru_benchmark.py)   | CWRU Bearing — fault classification |
+| [`benchmarks/run_ablation.py`](benchmarks/run_ablation.py)               | Ablation of 3-component hybrid risk (monograph § 8.4) |
+| [`benchmarks/run_baselines.py`](benchmarks/run_baselines.py)             | IsolationForest vs LOF vs OC-SVM vs z-score |
+
+Download the data first (see [`docs/benchmarks.md`](docs/benchmarks.md))
+then run, e.g.:
+
 ```bash
 python benchmarks/run_cmapss_benchmark.py
 python benchmarks/run_cwru_benchmark.py
+python benchmarks/run_ablation.py  --n-seeds 10
+python benchmarks/run_baselines.py --n-seeds 10
 ```
-Each script writes a CSV of per-method metrics to `benchmarks/results/`.
+
+Every benchmark writes both a raw `.csv` (per-seed metrics) and a
+`.tex` LaTeX-ready summary table to `benchmarks/results/`.
+
+## Reproducibility
+
+This repository is designed to be reproducible end-to-end for
+peer review:
+
+- **Python**: 3.11 (CI matrix covers 3.10 / 3.11 / 3.12)
+- **Random seeds**: every training/evaluation script takes a `--seed`
+  (or `--n-seeds`) argument; all results in the monograph and the
+  companion Scopus paper are produced with seeds 0–9.
+- **Environment pinning**: `pyproject.toml` declares all runtime
+  dependencies with lower bounds; `pip install -e ".[all]"` installs
+  the complete stack.
+- **Container parity**: `docker compose -f docker/docker-compose.yml
+  up api` exposes exactly the same REST surface used in the monograph
+  case studies.
+- **Data**: benchmark datasets live in `benchmarks/data/` (gitignored)
+  and are downloaded on first use with the bundled scripts. See
+  [`docs/benchmarks.md`](docs/benchmarks.md) for exact URLs and
+  version-pinned archive hashes.
+- **Results archive**: each release publishes a Zenodo record that
+  archives the source tarball alongside `benchmarks/results/*.csv`
+  and `*.tex` artefacts, so reviewers can compare their re-runs
+  against the exact numbers reported.
 ## Repository Structure
+
+Flat layout matching Chapter 10.2 of the monograph:
+
 ```
 ai-industrial-predictive-safety/
 ├── src/ai_cta/
-│   ├── features/           # Feature extractors (statistical / rolling / FFT)
-│   ├── detection/          # Anomaly detectors (IF, LSTM, hybrid)
-│   ├── prognostics/        # RUL, Neural Risk, Drift, Online Calibration
-│   ├── risk/               # Risk scoring, conformal calibration, aggregation
-│   ├── streaming/          # End-to-end pipeline orchestration
-│   └── utils/              # Synthetic data, simulator, evaluation
-├── api/                    # FastAPI REST service
-├── docker/                 # Dockerfile and docker-compose stack
-├── tests/                  # pytest suite
+│   ├── preprocess.py         # feature extractors (statistical / rolling / FFT)
+│   ├── anomaly_detector.py   # IsolationForest + LSTM + Hybrid detectors
+│   ├── rul_estimator.py      # LSTM quantile-regression RUL estimator
+│   ├── risk_model.py         # RiskScorer, RiskAggregator, ConformalCalibrator, NeuralRisk
+│   ├── drift_detector.py     # PSI + KS population drift
+│   ├── calibration.py        # OnlineCalibrator (scheduled recalibration)
+│   ├── simulator.py          # IndustrialSimulator telemetry generator
+│   ├── pipeline.py           # SafetyPipeline streaming orchestrator
+│   ├── data.py               # generate_synthetic_stream, inject_anomalies
+│   └── evaluation.py         # evaluate_binary_detector metrics
+├── api/                    # FastAPI REST service (/predict, /score, /score-batch)
+├── docker/                 # Dockerfile + 9-container docker-compose stack
+├── configs/                # YAML hyperparameter configs
+├── n8n_workflows/          # Exported n8n workflow JSON
+├── notebooks/              # Reproducibility Jupyter notebooks
+├── tests/                  # pytest suite (62 tests)
 ├── examples/               # Quick-start demo
-├── benchmarks/             # C-MAPSS and CWRU evaluation scripts
+├── benchmarks/             # C-MAPSS, CWRU, ablation, baselines
 ├── docs/                   # Architecture, API, benchmark documentation
 ├── .github/workflows/      # CI configuration
 ├── CITATION.cff
@@ -204,8 +256,10 @@ pytest tests/
 ```
 All 62 tests should pass on Python 3.10+.
 ## Citation
+
 If you use this code in your research, please cite both the software and
 the accompanying monograph:
+
 ```bibtex
 @software{serebriakov_ai_cta_2026,
   author  = {Serebriakov, Ilia},
@@ -216,12 +270,41 @@ the accompanying monograph:
   version = {1.1.0},
   url     = {https://github.com/Allarayzer/ai-industrial-predictive-safety},
 }
+
 @book{serebriakov_monograph_2026,
   author    = {Serebriakov, Ilia},
   title     = {Artificial Intelligence for Preventing Accidents
                at High-Risk Industrial Facilities},
   year      = {2026},
   publisher = {Ridero},
+}
+```
+
+If you reproduce the benchmark results, please also cite the
+underlying datasets:
+
+```bibtex
+@inproceedings{saxena_cmapss_2008,
+  author    = {Saxena, Abhinav and Goebel, Kai and Simon, Don and Eklund, Neil},
+  title     = {Damage Propagation Modeling for Aircraft Engine Run-to-Failure Simulation},
+  booktitle = {International Conference on Prognostics and Health Management (PHM)},
+  year      = {2008},
+  publisher = {IEEE},
+}
+
+@misc{nasa_cmapss_data,
+  author = {{NASA Prognostics Center of Excellence}},
+  title  = {{CMAPSS} Jet Engine Simulated Data},
+  year   = {2008},
+  url    = {https://data.nasa.gov/dataset/CMAPSS-Jet-Engine-Simulated-Data},
+  note   = {Accessed via the PHM Society archive.},
+}
+
+@misc{cwru_bearing_data,
+  author = {{Case Western Reserve University}},
+  title  = {Bearing Data Center},
+  url    = {https://engineering.case.edu/bearingdatacenter},
+  note   = {Real-world bearing vibration dataset.},
 }
 ```
 ## License

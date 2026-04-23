@@ -15,11 +15,11 @@ import pathlib
 import time
 import numpy as np
 import pandas as pd
-from ai_cta.detection import (
+from ai_cta.anomaly_detector import (
     HybridDetector,
     IsolationForestDetector,
 )
-from ai_cta.utils.evaluation import evaluate_binary_detector
+from ai_cta.evaluation import evaluate_binary_detector
 
 DATA_DIR = pathlib.Path(__file__).parent / "data" / "cwru"
 RESULTS_DIR = pathlib.Path(__file__).parent / "results"

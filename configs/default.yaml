@@ -1,0 +1,91 @@
+# configs/default.yaml
+#
+# Reference configuration for the ai_cta reference implementation.
+# Matches Chapter 10.11 of the accompanying monograph.
+#
+# All hyperparameters are externalized here so that production
+# deployments can override specific values via `configs/production.yaml`
+# or environment variables without touching Python code.
+
+preprocess:
+  window_size: 60
+  step: 30
+  smoothing: ewma
+  smoothing_alpha: 0.1
+
+anomaly_detector:
+  isolation_forest:
+    n_estimators: 200
+    contamination: 0.02
+    max_samples: 256
+    random_state: 42
+  lstm_autoencoder:
+    h1: 64
+    h2: 16
+    dropout: 0.2
+    epochs: 50
+    batch_size: 64
+    validation_split: 0.2
+    early_stopping_patience: 10
+
+rul_estimator:
+  quantiles: [0.1, 0.5, 0.9]
+  rul_max: 125.0
+  xgboost:
+    n_estimators: 500
+    max_depth: 6
+    learning_rate: 0.05
+    early_stopping_rounds: 20
+  lstm:
+    h1: 128
+    h2: 64
+    dropout: 0.3
+    epochs: 50
+    batch_size: 64
+    early_stopping_patience: 10
+
+risk_aggregator:
+  # Alert-level thresholds for the hybrid risk R_final.
+  # See monograph § 8.4.3.
+  thresholds: [0.3, 0.6, 0.85]
+  # Asymmetric cost function used in SLSQP weight calibration.
+  # See monograph § 8.4.2.
+  costs:
+    cost_fn: 10.0
+    cost_fp: 1.0
+  # Initial weights; overwritten by `calibrate_weights` on the
+  # validation split.
+  initial_weights: [0.334, 0.333, 0.333]
+
+conformal:
+  # Target mis-coverage rate for split-conformal calibration.
+  alpha: 0.05
+  min_calibration_samples: 100
+
+drift_detector:
+  # PSI threshold for declaring a population shift.
+  psi_threshold: 0.25
+  # Per-feature Bonferroni-corrected KS significance level.
+  ks_alpha: 0.05
+
+online_calibrator:
+  # Number of new samples before re-calibration fires.
+  recalibrate_every: 1000
+  # Rolling buffer of recent calibration samples.
+  buffer_size: 5000
+
+pipeline:
+  # Number of warmup samples during which the pipeline only buffers
+  # data without raising alerts.
+  warmup_samples: 200
+  # Optional webhook endpoint for forwarding alerts (e.g. n8n).
+  alert_webhook: null
+
+api:
+  host: 0.0.0.0
+  port: 8000
+  log_level: info
+
+logging:
+  level: INFO
+  format: structured

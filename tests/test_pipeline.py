@@ -1,9 +1,9 @@
 """Tests for the streaming SafetyPipeline."""
 import numpy as np
 import pandas as pd
-from ai_cta.risk.scoring import RiskScorer
-from ai_cta.streaming.pipeline import SafetyPipeline
-from ai_cta.utils.data import generate_synthetic_stream
+from ai_cta.risk_model import RiskScorer
+from ai_cta.pipeline import SafetyPipeline
+from ai_cta.data import generate_synthetic_stream
 
 class _DummyDetector:
     """Detector that returns a constant anomaly score per window."""

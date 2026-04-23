@@ -1,6 +1,7 @@
 """FastAPI service exposing the AI-CTA pipeline as REST endpoints.
 Implements the API surface described in Chapter 10.8 of the monograph:
-- ``POST /score``        — score a single sensor reading
+- ``POST /predict``      — score a single reading (book § 10.8 canonical form)
+- ``POST /score``        — alias for /predict with legacy payload schema
 - ``POST /score-batch``  — score a batch of readings
 - ``GET  /health``       — health probe
 - ``GET  /version``      — package version and runtime info
@@ -23,8 +24,8 @@ from ai_cta import (
     SafetyPipeline,
     __version__,
 )
-from ai_cta.risk.scoring import ChannelLimits
-from ai_cta.utils import generate_synthetic_stream
+from ai_cta.risk_model import ChannelLimits
+from ai_cta.data import generate_synthetic_stream
 
 try:
     from fastapi import FastAPI, HTTPException
@@ -152,9 +153,16 @@ def score_batch(req: BatchRequest) -> list[ScoreResponse]:
         for e in events
     ]
 
+@app.post("/predict", response_model=ScoreResponse)
 @app.post("/score", response_model=ScoreResponse)
 def score_single(reading: SensorReading) -> ScoreResponse:
     """Score a single reading by appending it to a synthetic prefix.
+
+    This is the canonical single-sample endpoint referenced in monograph
+    § 10.8. Registered under both ``/predict`` (book-canonical) and
+    ``/score`` (legacy alias) so integrations written against either
+    spelling continue to work.
+
     Useful for smoke testing. For real streaming scoring, send batches
     of at least ``window_size`` readings via ``/score-batch``.
     """

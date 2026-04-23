@@ -43,3 +43,32 @@ references:
     publisher:
       name: Ridero
     notes: "Monograph accompanying this software."
+  - type: conference-paper
+    title: "Damage Propagation Modeling for Aircraft Engine Run-to-Failure Simulation"
+    authors:
+      - family-names: Saxena
+        given-names: Abhinav
+      - family-names: Goebel
+        given-names: Kai
+      - family-names: Simon
+        given-names: Don
+      - family-names: Eklund
+        given-names: Neil
+    year: 2008
+    collection-title: "Proceedings of the International Conference on Prognostics and Health Management (PHM)"
+    publisher:
+      name: IEEE
+    notes: "Origin of the NASA C-MAPSS turbofan degradation dataset used in the benchmarks."
+  - type: data
+    title: "CMAPSS Jet Engine Simulated Data"
+    authors:
+      - name: "NASA Prognostics Center of Excellence (PCoE)"
+    year: 2008
+    url: "https://data.nasa.gov/dataset/CMAPSS-Jet-Engine-Simulated-Data"
+    notes: "Public-domain dataset (17 U.S.C. § 105); used in benchmarks/run_cmapss_benchmark.py."
+  - type: data
+    title: "Case Western Reserve University Bearing Data Center"
+    authors:
+      - name: "Case Western Reserve University"
+    url: "https://engineering.case.edu/bearingdatacenter"
+    notes: "Real-world bearing vibration measurements; used in benchmarks/run_cwru_benchmark.py."

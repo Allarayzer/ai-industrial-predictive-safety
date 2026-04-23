@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-from ai_cta.features import (
+from ai_cta.preprocess import (
     FrequencyDomainFeatureExtractor,
     RollingWindowFeatureExtractor,
     StatisticalFeatureExtractor,
