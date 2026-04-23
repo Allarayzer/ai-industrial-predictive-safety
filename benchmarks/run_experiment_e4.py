@@ -47,24 +47,39 @@ def corrupt(test: pd.DataFrame, sigma: float, missing: float, seed: int) -> pd.D
 
 
 def evaluate_cascade(
-    train: pd.DataFrame, test: pd.DataFrame, labels: np.ndarray, seed: int
-) -> float:
-    """Fit Cascade, threshold at 95th percentile, return F1."""
+    train: pd.DataFrame, test: pd.DataFrame, labels: np.ndarray, seed: int,
+    threshold: float | None = None,
+) -> tuple[float, float]:
+    """Fit Cascade on clean train, optionally use a caller-supplied threshold.
+
+    The threshold MUST be calibrated on clean training data (not on the
+    test set) to avoid the data-leakage pitfall where a quantile of the
+    test-set scores absorbs any distributional shift introduced by
+    noise/missingness and hides the real F1 degradation.
+
+    Returns (f1, used_threshold). If threshold is None it is calibrated
+    from the training scores (95th percentile).
+    """
     det = HybridDetector(
         if_weight=0.5,
         if_params={"window_size": 64, "stride": 32, "use_spectral": False, "random_state": seed},
         lstm_params={"window_size": 32, "lstm_units": (32, 16), "epochs": 8, "random_state": seed},
     )
     det.fit(train.drop(columns=["timestamp"]))
+
+    if threshold is None:
+        # Calibrate threshold on CLEAN TRAIN data only.
+        train_scores = det.decision_function(train.drop(columns=["timestamp"]))
+        threshold = float(np.percentile(train_scores, 95))
+
     scores = det.decision_function(test.drop(columns=["timestamp"]))
     # Pad to labels length.
     if len(scores) < len(labels):
         scores = np.concatenate([np.full(len(labels) - len(scores), scores[0]), scores])
     else:
         scores = scores[:len(labels)]
-    threshold = float(np.percentile(scores, 95))
     y_pred = (scores >= threshold).astype(int)
-    return float(evaluate_binary_detector(labels, y_pred).f1)
+    return float(evaluate_binary_detector(labels, y_pred).f1), threshold
 
 
 def main() -> int:
@@ -83,24 +98,38 @@ def main() -> int:
 
     results: list[dict] = []
 
-    # Sweep 1: noise only.
+    # Step 1: calibrate threshold on CLEAN train data, per seed. This
+    # threshold is frozen and re-used across all noise/missingness
+    # conditions so we measure real robustness, not threshold adaptation.
+    clean_thresholds: dict[int, float] = {}
+    print("Calibrating thresholds on clean train data...")
+    for seed, (train, test, labels) in enumerate(datasets):
+        _, threshold = evaluate_cascade(train, test, labels, seed, threshold=None)
+        clean_thresholds[seed] = threshold
+        print(f"  seed={seed}  clean-train threshold = {threshold:.4f}")
+
+    # Sweep 1: noise only. Use frozen threshold from clean train.
+    print("\nNoise sweep (threshold fixed from clean train):")
     for sigma in [0.00, 0.01, 0.05, 0.10, 0.20]:
         for seed, (train, test, labels) in enumerate(datasets):
             corrupted = corrupt(test, sigma=sigma, missing=0.0, seed=seed + 100)
             t0 = time.perf_counter()
-            f1 = evaluate_cascade(train, corrupted, labels, seed)
+            f1, _ = evaluate_cascade(train, corrupted, labels, seed,
+                                     threshold=clean_thresholds[seed])
             print(f"  sigma={sigma:<5} missing=0.00  seed={seed}  F1={f1:.3f}  ({time.perf_counter()-t0:.1f}s)")
             results.append({
                 "sweep": "noise", "sigma": sigma, "missing": 0.0,
                 "seed": seed, "f1": round(f1, 3),
             })
 
-    # Sweep 2: missingness at fixed noise sigma=0.05.
+    # Sweep 2: missingness at fixed noise sigma=0.05. Same frozen threshold.
+    print("\nMissingness sweep (threshold fixed from clean train):")
     for missing in [0.00, 0.01, 0.05, 0.10]:
         for seed, (train, test, labels) in enumerate(datasets):
             corrupted = corrupt(test, sigma=0.05, missing=missing, seed=seed + 200)
             t0 = time.perf_counter()
-            f1 = evaluate_cascade(train, corrupted, labels, seed)
+            f1, _ = evaluate_cascade(train, corrupted, labels, seed,
+                                     threshold=clean_thresholds[seed])
             print(f"  sigma=0.05  missing={missing:<5}  seed={seed}  F1={f1:.3f}  ({time.perf_counter()-t0:.1f}s)")
             results.append({
                 "sweep": "missing", "sigma": 0.05, "missing": missing,

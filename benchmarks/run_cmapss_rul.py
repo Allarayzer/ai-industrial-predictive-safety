@@ -130,21 +130,60 @@ def fit_predict_sklearn_pointwise(
     return np.clip(preds, 0.0, RUL_MAX)
 
 
-def fit_predict_lstm_median(
+def fit_predict_lstm_mse(
     train_df: pd.DataFrame,
     train_rul: np.ndarray,
     test_df: pd.DataFrame,
     epochs: int,
     window_size: int,
 ) -> np.ndarray:
-    """LSTM with a single median (0.5) quantile — matches 'LSTM only' baseline."""
-    est = RULEstimator(
-        window_size=window_size, quantiles=(0.5,),
-        rul_max=RUL_MAX, epochs=epochs,
+    """Vanilla LSTM regressor trained with MSE loss — proper 'LSTM only'
+    baseline. Uses Keras directly to avoid the multi-quantile
+    RULEstimator machinery, so we get an apples-to-apples comparison
+    of a standard deep-learning baseline against the proposed ensemble.
+    """
+    import tensorflow as tf
+    from sklearn.preprocessing import StandardScaler
+
+    rng = np.random.default_rng(42)
+    tf.random.set_seed(42)
+    np.random.seed(42)
+
+    X = train_df[SELECTED_SENSORS].to_numpy(dtype=np.float32)
+    y = np.minimum(train_rul, RUL_MAX).astype(np.float32)
+    scaler = StandardScaler().fit(X)
+    X = scaler.transform(X).astype(np.float32)
+
+    # Build windows: (n_win, window_size, n_features), target = RUL at window end.
+    n_win = len(X) - window_size + 1
+    Xs = np.stack([X[i:i + window_size] for i in range(n_win)], axis=0)
+    ys = y[window_size - 1:]
+
+    d = len(SELECTED_SENSORS)
+    inp = tf.keras.Input(shape=(window_size, d))
+    x = tf.keras.layers.LSTM(64, return_sequences=True, dropout=0.2)(inp)
+    x = tf.keras.layers.LSTM(32, dropout=0.2)(x)
+    out = tf.keras.layers.Dense(1)(x)
+    model = tf.keras.Model(inp, out)
+    model.compile(optimizer=tf.keras.optimizers.Adam(1e-3), loss="mse")
+    model.fit(
+        Xs, ys, epochs=epochs, batch_size=64, validation_split=0.15,
+        callbacks=[tf.keras.callbacks.EarlyStopping(patience=8, restore_best_weights=True)],
+        verbose=0,
     )
-    # RULEstimator expects a single DataFrame with an RUL value per row.
-    est.fit(train_df[SELECTED_SENSORS], train_rul)
-    return _predict_last_per_engine(est, test_df, window_size)
+
+    # Predict last window per test engine.
+    units = sorted(test_df["unit"].unique())
+    preds = np.zeros(len(units), dtype=np.float32)
+    for i, u in enumerate(units):
+        traj = test_df[test_df["unit"] == u][SELECTED_SENSORS].to_numpy(dtype=np.float32)
+        if len(traj) < window_size:
+            pad = np.tile(traj[0], (window_size - len(traj), 1))
+            traj = np.concatenate([pad, traj], axis=0)
+        win = scaler.transform(traj[-window_size:])[None, ...]
+        p = float(model.predict(win.astype(np.float32), verbose=0).flatten()[0])
+        preds[i] = np.clip(p, 0.0, RUL_MAX)
+    return preds
 
 
 def fit_predict_lstm_ensemble(
@@ -201,7 +240,7 @@ METHODS = [
         lambda: RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1), td, tr, te)),
     ("Gradient Boosting (median)", lambda td, tr, te, ep, ws: fit_predict_sklearn_pointwise(
         lambda: GradientBoostingRegressor(n_estimators=200, max_depth=3, random_state=42), td, tr, te)),
-    ("LSTM (median only)", fit_predict_lstm_median),
+    ("LSTM (MSE)", fit_predict_lstm_mse),
     ("Proposed Ensemble (LSTM quantile)", fit_predict_lstm_ensemble),
 ]
 

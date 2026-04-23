@@ -41,16 +41,23 @@ from ai_cta.data import generate_synthetic_stream, inject_anomalies
 RESULTS_DIR = pathlib.Path(__file__).parent / "results"
 
 
-def build_dataset(seed: int, n_samples: int = 5000) -> tuple[pd.DataFrame, pd.DataFrame, np.ndarray]:
+def build_dataset(
+    seed: int, n_samples: int = 5000
+) -> tuple[pd.DataFrame, pd.DataFrame, np.ndarray, pd.DataFrame, np.ndarray]:
     """Generate Dataset S1: 3-channel industrial stream with ~5% anomalies.
 
-    Split: 70% train (no anomalies) / 30% test (anomalies injected).
+    Split: 60% clean train / 20% labelled val / 20% labelled test.
+    The val split is used by Cascade to tune its weight via F1
+    optimisation, matching standard practice in ensemble literature.
     """
-    train = generate_synthetic_stream(n_samples=int(n_samples * 0.7), random_state=seed)
-    test_base = generate_synthetic_stream(n_samples=int(n_samples * 0.3), random_state=seed + 1)
-    n_anom = max(20, int(len(test_base) * 0.05))
-    test, labels = inject_anomalies(test_base, n_anomalies=n_anom, random_state=seed + 2)
-    return train, test, labels
+    train = generate_synthetic_stream(n_samples=int(n_samples * 0.6), random_state=seed)
+    val_base = generate_synthetic_stream(n_samples=int(n_samples * 0.2), random_state=seed + 1)
+    test_base = generate_synthetic_stream(n_samples=int(n_samples * 0.2), random_state=seed + 2)
+    n_anom_val = max(10, int(len(val_base) * 0.05))
+    n_anom_test = max(10, int(len(test_base) * 0.05))
+    val, val_labels = inject_anomalies(val_base, n_anomalies=n_anom_val, random_state=seed + 3)
+    test, test_labels = inject_anomalies(test_base, n_anomalies=n_anom_test, random_state=seed + 4)
+    return train, val, val_labels, test, test_labels
 
 
 def threshold_3sigma(train: pd.DataFrame, test: pd.DataFrame) -> np.ndarray:
@@ -88,7 +95,8 @@ def lstm_scores(
 
 
 def cascade_scores(
-    train: pd.DataFrame, test: pd.DataFrame, seed: int, window: int = 32
+    train: pd.DataFrame, test: pd.DataFrame, seed: int, window: int = 32,
+    val: pd.DataFrame | None = None, val_labels: np.ndarray | None = None,
 ) -> np.ndarray:
     det = HybridDetector(
         if_weight=0.5,
@@ -98,6 +106,18 @@ def cascade_scores(
                      "epochs": 10, "random_state": seed},
     )
     det.fit(train.drop(columns=["timestamp"]))
+    # Tune the weight on labelled validation data (standard practice for
+    # an ensemble — avoids the degenerate w=0.5 default that may combine
+    # an uninformative IForest with an informative LSTM).
+    if val is not None and val_labels is not None:
+        # Align val_labels to the detector's output length.
+        pad_len = len(val_labels)
+        val_df = val.drop(columns=["timestamp"])
+        try:
+            tuned_w = det.tune_weights(val_df, val_labels[:pad_len], n_grid=11)
+            print(f"    [cascade tune_weights] best if_weight = {tuned_w:.2f}")
+        except Exception as exc:  # pragma: no cover
+            print(f"    [cascade tune_weights] failed: {exc}; using default 0.5")
     s = det.decision_function(test.drop(columns=["timestamp"]))
     return _pad_to_length(s, len(test))
 
@@ -167,15 +187,17 @@ def main() -> int:
     all_rows: list[dict] = []
     for seed in range(args.n_seeds):
         print(f"\n=== seed {seed} ===")
-        train, test, labels = build_dataset(seed, args.n_samples)
+        train, val, val_labels, test, test_labels = build_dataset(seed, args.n_samples)
         for name, fn in METHODS.items():
             t0 = time.perf_counter()
             if name == "Threshold 3sigma":
                 scores = fn(train, test)
+            elif name == "Cascade (IF+AE)":
+                scores = fn(train, test, seed, val=val, val_labels=val_labels)
             else:
                 scores = fn(train, test, seed)
             elapsed = time.perf_counter() - t0
-            metrics = score_binary(scores, labels)
+            metrics = score_binary(scores, test_labels)
             row = {"seed": seed, "method": name, **metrics, "time_sec": round(elapsed, 1)}
             print(f"  {name:<22} F1={metrics['f1']:.3f}  P={metrics['precision']:.3f}  "
                   f"R={metrics['recall']:.3f}  ROC={metrics['roc_auc']:.3f}  "
