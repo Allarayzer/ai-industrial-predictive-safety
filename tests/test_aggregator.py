@@ -1,7 +1,9 @@
 """Tests for the RiskAggregator."""
 import numpy as np
 import pytest
+
 from ai_cta.risk_model import RiskAggregator
+
 
 def test_aggregator_default_weights():
     agg = RiskAggregator()

@@ -1,11 +1,12 @@
 """Tests for the IndustrialSimulator."""
-import numpy as np
 import pandas as pd
+
 from ai_cta.simulator import (
     IndustrialSimulator,
     SimulationEvent,
     make_failure_labels,
 )
+
 
 def test_simulator_basic_shape():
     sim = IndustrialSimulator(
@@ -25,7 +26,7 @@ def test_simulator_reproducibility():
     df2, events2 = sim2.generate()
     pd.testing.assert_frame_equal(df1, df2)
     assert len(events1) == len(events2)
-    for e1, e2 in zip(events1, events2):
+    for e1, e2 in zip(events1, events2, strict=False):
         assert e1 == e2
 
 def test_simulator_different_seeds_differ():

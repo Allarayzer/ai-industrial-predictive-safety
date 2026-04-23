@@ -1,7 +1,9 @@
 """Tests for the OnlineCalibrator."""
 import numpy as np
 import pytest
+
 from ai_cta.calibration import CalibrationUpdate, OnlineCalibrator
+
 
 def test_calibrator_initial_state():
     cal = OnlineCalibrator(alpha=0.05, min_recalibrate=100)

@@ -1,11 +1,13 @@
 """Tests for synthetic data utilities."""
 import numpy as np
 import pandas as pd
+
 from ai_cta.data import (
     generate_synthetic_stream,
     inject_anomalies,
 )
 from ai_cta.evaluation import evaluate_binary_detector
+
 
 def test_generate_synthetic_stream_shape():
     df = generate_synthetic_stream(n_samples=500, random_state=0)

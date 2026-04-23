@@ -90,9 +90,16 @@ addopts = "-v --tb=short"
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM"]
-ignore = ["E501"]
+# E501: line length (handled by formatter)
+# N803/N806: uppercase argument / variable names — we use X, Y, Xs for
+#   matrices (sklearn/pandas/tensorflow convention); no fix planned.
+# N802: method names — some keep sklearn's camelCase (decision_function, etc.)
+# E402: module-level import not at top — intentional for optional
+#   tensorflow imports inside try/except.
+ignore = ["E501", "N803", "N806", "N802", "E402"]
 [tool.mypy]
 python_version = "3.10"
 warn_return_any = true

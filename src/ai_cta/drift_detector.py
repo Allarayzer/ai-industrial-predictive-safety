@@ -14,7 +14,9 @@ Two methods are provided:
 Both methods operate on a sliding reference/current window comparison.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -71,7 +73,7 @@ class DriftDetector:
         self.bonferroni = bonferroni
         self.threshold = threshold if threshold is not None else (0.25 if method == "psi" else 0.01)
     # ------------------------------------------------------------- fit
-    def fit(self, reference: pd.DataFrame) -> "DriftDetector":
+    def fit(self, reference: pd.DataFrame) -> DriftDetector:
         """Establish the reference distribution.
         Parameters
         ----------

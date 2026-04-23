@@ -6,12 +6,14 @@ with industrial-grade streaming backends (Kafka, MQTT brokers, OPC UA
 servers) via the provided adapters.
 """
 from __future__ import annotations
+
 import json
 import logging
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, Optional
-import numpy as np
+
 import pandas as pd
+
 from ai_cta.risk_model import RiskScorer
 
 __all__ = ["SafetyPipeline", "PipelineEvent"]

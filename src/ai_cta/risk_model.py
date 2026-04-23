@@ -8,9 +8,25 @@ while the rule-based component remains auditable and aligns with existing
 operational limits.
 """
 from __future__ import annotations
+
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping
+
 import numpy as np
+import pandas as pd
+from scipy.optimize import minimize
+from sklearn.base import BaseEstimator
+from sklearn.preprocessing import StandardScaler
+
+# Lazy tensorflow import at module scope so NeuralRiskEstimator's
+# private methods (`_build_model`, `_asymmetric_bce`) can reference `tf`
+# without needing to re-import inside each method. Set to None when
+# tensorflow is not installed; methods that require it check and
+# raise ImportError at call time.
+try:
+    import tensorflow as tf  # noqa: F401  (used in NeuralRiskEstimator methods)
+except ImportError:  # pragma: no cover - optional dependency
+    tf = None  # type: ignore[assignment]
 
 
 @dataclass(frozen=True)
@@ -157,7 +173,7 @@ class ConformalThresholdCalibrator:
             raise ValueError("alpha must be in (0, 1).")
         self.alpha = alpha
         self.random_state = random_state
-    def calibrate(self, calibration_scores: np.ndarray) -> "ConformalThresholdCalibrator":
+    def calibrate(self, calibration_scores: np.ndarray) -> ConformalThresholdCalibrator:
         """Compute the (1 - alpha)-quantile on a held-out calibration set.
         Parameters
         ----------
@@ -204,10 +220,6 @@ with w_i ≥ 0, Σ w_i = 1.
 Weights are calibrated by minimizing an asymmetric BCE loss on a
 labeled validation set, subject to the simplex constraint, via SLSQP.
 """
-from scipy.optimize import minimize
-from ai_cta.risk_model import RiskScorer  # noqa: F401  (re-export friendly)
-
-
 class RiskAggregator:
     """Linear combination of three risk components with calibrated weights.
     Parameters
@@ -275,9 +287,9 @@ class RiskAggregator:
         return R_final, self._classify(R_final)
     def _classify(self, R: np.ndarray) -> np.ndarray:
         labels = np.full(R.shape, self.LEVELS[0], dtype=object)
-        labels[R >= self.thresholds[0]] = self.LEVELS[1]
-        labels[R >= self.thresholds[1]] = self.LEVELS[2]
-        labels[R >= self.thresholds[2]] = self.LEVELS[3]
+        labels[self.thresholds[0] <= R] = self.LEVELS[1]
+        labels[self.thresholds[1] <= R] = self.LEVELS[2]
+        labels[self.thresholds[2] <= R] = self.LEVELS[3]
         return labels
     @staticmethod
     def _align_three(*arrays: np.ndarray) -> tuple[np.ndarray, ...]:
@@ -320,11 +332,11 @@ class RiskAggregator:
             s = w.sum() + eps
             w = w / s
             R = np.clip(stacked @ w, eps, 1.0 - eps)
-            l = -(
+            loss_per_sample = -(
                 self.cost_fn * y * np.log(R)
                 + self.cost_fp * (1.0 - y) * np.log(1.0 - R)
             )
-            return float(l.mean())
+            return float(loss_per_sample.mean())
         cons = ({"type": "eq", "fun": lambda w: float(np.sum(w) - 1)},)
         bnds = [(0.0, 1.0)] * 3
         x0 = np.array([1.0 / 3, 1.0 / 3, 1.0 / 3])
@@ -358,9 +370,6 @@ Class-asymmetric binary cross-entropy as in monograph § 8.3.3:
     L = − Σ [c_FN · y · log(g(x))  +  c_FP · (1 − y) · log(1 − g(x))]
 with c_FN ≫ c_FP, reflecting the higher cost of missed accidents.
 """
-import pandas as pd
-from sklearn.base import BaseEstimator
-from sklearn.preprocessing import StandardScaler
 
 
 class NeuralRiskEstimator(BaseEstimator):
@@ -405,7 +414,7 @@ class NeuralRiskEstimator(BaseEstimator):
         self.cost_fp = cost_fp
         self.random_state = random_state
     # ------------------------------------------------------------- fit
-    def fit(self, X: pd.DataFrame, y: np.ndarray) -> "NeuralRiskEstimator":
+    def fit(self, X: pd.DataFrame, y: np.ndarray) -> NeuralRiskEstimator:
         """Fit the neural risk estimator on labeled data.
         Parameters
         ----------
@@ -417,13 +426,11 @@ class NeuralRiskEstimator(BaseEstimator):
             Binary label: 1 if failure occurred within the target horizon
             after this sample, 0 otherwise.
         """
-        try:
-            import tensorflow as tf
-        except ImportError as exc:
+        if tf is None:
             raise ImportError(
                 "NeuralRiskEstimator requires tensorflow. "
                 "Install it via `pip install tensorflow`."
-            ) from exc
+            )
         tf.random.set_seed(self.random_state)
         np.random.seed(self.random_state)
         if not isinstance(X, pd.DataFrame):

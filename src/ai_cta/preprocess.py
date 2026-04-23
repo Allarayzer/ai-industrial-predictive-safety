@@ -8,8 +8,10 @@ All extractors follow the scikit-learn transformer interface (fit/transform)
 so they can be composed with standard sklearn Pipelines.
 """
 from __future__ import annotations
+
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
+
 import numpy as np
 import pandas as pd
 from scipy import stats
@@ -55,7 +57,7 @@ class StatisticalFeatureExtractor(BaseEstimator, TransformerMixin):
     )
     def __init__(self, channels: Sequence[str] | None = None):
         self.channels = channels
-    def fit(self, X: pd.DataFrame, y=None) -> "StatisticalFeatureExtractor":
+    def fit(self, X: pd.DataFrame, y=None) -> StatisticalFeatureExtractor:
         """Record channel names (no fitted parameters in this transformer)."""
         if self.channels is None:
             self.channels_ = list(X.columns)
@@ -130,7 +132,7 @@ class RollingWindowFeatureExtractor(BaseEstimator, TransformerMixin):
         self.step = step
         self.channels = channels
         self.aggregations = aggregations
-    def fit(self, X: pd.DataFrame, y=None) -> "RollingWindowFeatureExtractor":
+    def fit(self, X: pd.DataFrame, y=None) -> RollingWindowFeatureExtractor:
         if self.window_size < 2:
             raise ValueError("window_size must be >= 2")
         if self.step < 1:
@@ -195,7 +197,7 @@ class FrequencyDomainFeatureExtractor(BaseEstimator, TransformerMixin):
     def __init__(self, sampling_rate: float = 1.0, channels: Sequence[str] | None = None):
         self.sampling_rate = sampling_rate
         self.channels = channels
-    def fit(self, X: pd.DataFrame, y=None) -> "FrequencyDomainFeatureExtractor":
+    def fit(self, X: pd.DataFrame, y=None) -> FrequencyDomainFeatureExtractor:
         if self.sampling_rate <= 0:
             raise ValueError("sampling_rate must be positive")
         if self.channels is None:

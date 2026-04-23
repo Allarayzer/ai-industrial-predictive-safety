@@ -2,11 +2,13 @@
 import numpy as np
 import pandas as pd
 import pytest
+
 from ai_cta.preprocess import (
     FrequencyDomainFeatureExtractor,
     RollingWindowFeatureExtractor,
     StatisticalFeatureExtractor,
 )
+
 
 @pytest.fixture
 def sample_df() -> pd.DataFrame:
@@ -34,7 +36,7 @@ def test_statistical_extractor_known_values():
     extractor = StatisticalFeatureExtractor().fit(df)
     features = extractor.transform(df)[0]
     names = extractor.get_feature_names_out()
-    feat_map = dict(zip(names, features))
+    feat_map = dict(zip(names, features, strict=False))
     assert feat_map["a_mean"] == pytest.approx(3.0)
     assert feat_map["a_min"] == pytest.approx(1.0)
     assert feat_map["a_max"] == pytest.approx(5.0)
@@ -71,7 +73,7 @@ def test_frequency_extractor_dominant_frequency():
     df = pd.DataFrame({"ch": signal})
     extractor = FrequencyDomainFeatureExtractor(sampling_rate=fs).fit(df)
     names = extractor.get_feature_names_out()
-    features = dict(zip(names, extractor.transform(df)[0]))
+    features = dict(zip(names, extractor.transform(df)[0], strict=False))
     assert features["ch_dominant_frequency"] == pytest.approx(5.0, abs=0.1)
 
 def test_frequency_extractor_invalid_rate(sample_df):
