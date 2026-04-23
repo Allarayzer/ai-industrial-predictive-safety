@@ -1,0 +1,45 @@
+cff-version: 1.2.0
+message: "If you use this software in your research, please cite it as below."
+title: "AI-CTA: AI-Industrial Predictive Safety"
+abstract: >
+  Reference implementation of a predictive safety framework for
+  high-hazard industrial facilities. Combines Isolation Forest and
+  LSTM-based anomaly detection with quantile-regression remaining
+  useful life estimation, neural risk modelling, conformal threshold
+  calibration, and three-component risk aggregation. Includes a
+  streaming pipeline, REST API service, and reproducible benchmarks
+  on the NASA C-MAPSS and CWRU datasets.
+type: software
+authors:
+  - family-names: Serebriakov
+    given-names: Ilia
+    orcid: "https://orcid.org/0009-0009-1548-390X"
+    affiliation: "Engineering Science, Borough of Manhattan Community College, CUNY, New York, NY, USA"
+    email: allarayzer@gmail.com
+version: "1.1.0"
+date-released: "2026-04-22"
+repository-code: "https://github.com/Allarayzer/ai-industrial-predictive-safety"
+url: "https://github.com/Allarayzer/ai-industrial-predictive-safety"
+license: MIT
+keywords:
+  - industrial AI
+  - predictive maintenance
+  - anomaly detection
+  - isolation forest
+  - LSTM
+  - conformal prediction
+  - remaining useful life
+  - drift detection
+  - condition monitoring
+  - functional safety
+  - high-hazard industrial facilities
+references:
+  - type: book
+    title: "Artificial Intelligence for Preventing Accidents at High-Risk Industrial Facilities"
+    authors:
+      - family-names: Serebriakov
+        given-names: Ilia
+    year: 2026
+    publisher:
+      name: Ridero
+    notes: "Monograph accompanying this software."
