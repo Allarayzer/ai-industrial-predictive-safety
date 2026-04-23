@@ -2,7 +2,9 @@
 import numpy as np
 import pandas as pd
 import pytest
+
 from ai_cta.drift_detector import DriftDetector, DriftReport
+
 
 def _make_df(rng_seed: int, mean: float = 0.0, n: int = 500) -> pd.DataFrame:
     rng = np.random.default_rng(rng_seed)

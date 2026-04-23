@@ -1,6 +1,8 @@
 """Evaluation helpers for anomaly detectors."""
 from __future__ import annotations
+
 from dataclasses import dataclass
+
 import numpy as np
 
 __all__ = ["evaluate_binary_detector", "DetectorMetrics"]

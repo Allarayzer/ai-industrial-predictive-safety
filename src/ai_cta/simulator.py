@@ -14,8 +14,10 @@ delay drawn from an exponential distribution.
 The simulator is fully reproducible via a single integer seed.
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
+
+from dataclasses import dataclass
 from typing import Literal
+
 import numpy as np
 import pandas as pd
 
@@ -191,7 +193,7 @@ class IndustrialSimulator:
         if spec.degradation_kind == "exponential":
             return spec.baseline * (np.exp(spec.degradation_rate * days / 100.0) - 1.0) * 0.1
         if spec.degradation_kind == "stepwise":
-            n_steps = max(int(days.max() / 7.0), 1)
+            max(int(days.max() / 7.0), 1)
             step_height = spec.degradation_rate * spec.baseline / 100.0
             return np.floor(days / 7.0) * step_height * 0.5
         return np.zeros_like(t_minutes)

@@ -11,11 +11,13 @@ When triggered, it produces fresh threshold and weight updates that
 the consuming pipeline can adopt atomically.
 """
 from __future__ import annotations
+
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Optional
+
 import numpy as np
+
 from ai_cta.risk_model import ConformalThresholdCalibrator
 
 __all__ = ["OnlineCalibrator", "CalibrationUpdate"]
@@ -73,7 +75,7 @@ class OnlineCalibrator:
         self.schedule_seconds = schedule_seconds
         self.schedule_samples = schedule_samples
         self._buffer: deque[float] = deque(maxlen=buffer_size)
-        self._last_calibration_time: Optional[float] = None
+        self._last_calibration_time: float | None = None
         self._last_calibration_count: int = 0
         self._observations_seen: int = 0
     # -------------------------------------------------------- ingestion
@@ -86,7 +88,7 @@ class OnlineCalibrator:
         for s in scores:
             self.add(float(s))
     # ----------------------------------------------------- calibration
-    def maybe_recalibrate(self) -> Optional[CalibrationUpdate]:
+    def maybe_recalibrate(self) -> CalibrationUpdate | None:
         """Return a fresh threshold if the schedule allows, else None.
         Recalibration happens when:
         - The buffer has at least `min_recalibrate` entries.

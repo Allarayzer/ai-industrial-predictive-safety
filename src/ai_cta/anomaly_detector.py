@@ -11,16 +11,27 @@ Liu, F. T., Ting, K. M., & Zhou, Z.-H. (2008). Isolation Forest.
 In 2008 Eighth IEEE International Conference on Data Mining (pp. 413-422).
 """
 from __future__ import annotations
-from typing import Sequence
+
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import RobustScaler, StandardScaler
+
 from ai_cta.preprocess import (
-    StatisticalFeatureExtractor,
     FrequencyDomainFeatureExtractor,
+    StatisticalFeatureExtractor,
 )
+
+# Lazy tensorflow import. Kept at module scope so that all methods of
+# LSTMDetector (including _build_model) can reference `tf` without
+# shadowing via a method-local re-import. When tensorflow is not
+# installed, `tf` is None and LSTMDetector.fit() raises ImportError
+# on first use.
+try:
+    import tensorflow as tf  # noqa: F401  (re-exposed for _build_model)
+except ImportError:  # pragma: no cover - optional dependency
+    tf = None  # type: ignore[assignment]
 
 
 class IsolationForestDetector(BaseEstimator):
@@ -95,7 +106,7 @@ class IsolationForestDetector(BaseEstimator):
             rows.append(np.concatenate(parts, axis=1))
         return np.vstack(rows)
     # ------------------------------------------------------------------- fit
-    def fit(self, X: pd.DataFrame, y=None) -> "IsolationForestDetector":
+    def fit(self, X: pd.DataFrame, y=None) -> IsolationForestDetector:
         """Fit feature extractors, scaler, and Isolation Forest on X."""
         if not isinstance(X, pd.DataFrame):
             raise TypeError("X must be a pandas DataFrame.")
@@ -167,10 +178,6 @@ Malhotra, P., Ramakrishnan, A., Anand, G., Vig, L., Agarwal, P., & Shroff, G.
 (2016). LSTM-based Encoder-Decoder for Multi-sensor Anomaly Detection.
 ICML Anomaly Detection Workshop.
 """
-from typing import Optional
-from sklearn.preprocessing import StandardScaler
-
-
 class LSTMDetector(BaseEstimator):
     """Recurrent forecasting model for anomaly detection.
     Parameters
@@ -233,14 +240,12 @@ class LSTMDetector(BaseEstimator):
             ys[i] = X[i + self.window_size]
         return xs, ys
     # ------------------------------------------------------------------- fit
-    def fit(self, X: pd.DataFrame, y=None) -> "LSTMDetector":
-        try:
-            import tensorflow as tf
-        except ImportError as exc:
+    def fit(self, X: pd.DataFrame, y=None) -> LSTMDetector:
+        if tf is None:
             raise ImportError(
                 "LSTMDetector requires tensorflow. "
                 "Install it via `pip install tensorflow`."
-            ) from exc
+            )
         tf.random.set_seed(self.random_state)
         np.random.seed(self.random_state)
         if not isinstance(X, pd.DataFrame):
@@ -322,12 +327,6 @@ The two base detectors capture complementary anomaly modes:
 The hybrid combines them via a convex combination whose weight can be fixed
 or learned on a held-out validation set.
 """
-from ai_cta.anomaly_detector import (
-    IsolationForestDetector,
-)
-from ai_cta.anomaly_detector import LSTMDetector
-
-
 class HybridDetector(BaseEstimator):
     """Weighted combination of Isolation Forest and LSTM anomaly scores.
     Parameters
@@ -354,7 +353,7 @@ class HybridDetector(BaseEstimator):
         self.if_weight = if_weight
         self.if_params = if_params or {}
         self.lstm_params = lstm_params or {}
-    def fit(self, X: pd.DataFrame, y=None) -> "HybridDetector":
+    def fit(self, X: pd.DataFrame, y=None) -> HybridDetector:
         self._if = IsolationForestDetector(**self.if_params).fit(X)
         self._lstm = LSTMDetector(**self.lstm_params).fit(X)
         return self

@@ -1,8 +1,9 @@
 """Tests for risk scoring and conformal calibration."""
 import numpy as np
 import pytest
-from ai_cta.risk_model import ChannelLimits, RiskScorer
-from ai_cta.risk_model import ConformalThresholdCalibrator
+
+from ai_cta.risk_model import ChannelLimits, ConformalThresholdCalibrator, RiskScorer
+
 
 def test_risk_scorer_pure_ml():
     scorer = RiskScorer(ml_weight=1.0, limits={})

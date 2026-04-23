@@ -21,7 +21,9 @@ Tagasovska, N., & Lopez-Paz, D. (2019). Single-Model Uncertainties for
 Deep Learning. NeurIPS.
 """
 from __future__ import annotations
-from typing import Sequence
+
+from collections.abc import Sequence
+
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator
@@ -116,7 +118,7 @@ class RULEstimator(BaseEstimator):
         self,
         X: pd.DataFrame,
         y: np.ndarray,
-    ) -> "RULEstimator":
+    ) -> RULEstimator:
         """Fit the quantile regressor.
         Parameters
         ----------
