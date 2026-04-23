@@ -72,3 +72,26 @@ references:
       - name: "Case Western Reserve University"
     url: "https://engineering.case.edu/bearingdatacenter"
     notes: "Real-world bearing vibration measurements; used in benchmarks/run_cwru_benchmark.py."
+  - type: article
+    title: "Smart Data Collection System for Brownfield CNC Milling Machines: A New Benchmark Dataset for Data-Driven Machine Monitoring"
+    authors:
+      - family-names: Tnani
+        given-names: Mohamed-Ali
+      - family-names: Feil
+        given-names: Michael
+      - family-names: Diepold
+        given-names: Klaus
+    year: 2022
+    journal: "Procedia CIRP"
+    volume: 107
+    start: 131
+    end: 136
+    doi: "10.1016/j.procir.2022.04.022"
+    notes: "Bosch CNC Machining dataset — used in benchmarks/run_bosch_benchmark.py for cross-domain vibration anomaly detection validation."
+  - type: data
+    title: "Bosch CNC Machining Dataset"
+    authors:
+      - name: "Robert Bosch GmbH"
+      - name: "Technical University of Munich"
+    url: "https://github.com/boschresearch/CNC_Machining"
+    notes: "CC-BY-4.0 licensed dataset of tri-axial accelerometer recordings from 3 brownfield CNC milling machines (2018-10..2021-08); benchmark pinned at commit d60581d (2024-06-06)."
