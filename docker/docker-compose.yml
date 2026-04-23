@@ -1,7 +1,19 @@
-# Reference docker-compose stack for the AI-CTA pipeline (monograph § 12.5).
-# Brings up: REST API, n8n orchestrator, Postgres (n8n state), Redis (n8n queue).
-# Production deployments should add MLflow, Grafana, Prometheus, and InfluxDB
-# as described in the monograph.
+# Reference docker-compose stack for the AI-CTA pipeline.
+#
+# Matches the 9-container production stack described in monograph § 12.5:
+#   api          - FastAPI service exposing /predict, /score, /score-batch
+#   postgres     - relational state for n8n + MLflow backend
+#   redis        - queue backing n8n executions
+#   n8n          - low-code workflow orchestrator
+#   mlflow       - ML experiment tracking + model registry
+#   grafana      - observability dashboards
+#   prometheus   - metrics scraping + alerting
+#   influxdb     - time-series store for telemetry
+#   simulator    - industrial telemetry generator (feeds api during smoke tests)
+#
+# Resource note: the full stack requires ~8 GB RAM and ~5 GB disk.
+# For lightweight local testing use the minimal 4-service subset:
+#     docker compose up api postgres redis n8n
 services:
   api:
     build:
@@ -12,27 +24,38 @@ services:
       - "8000:8000"
     environment:
       - PYTHONUNBUFFERED=1
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - INFLUXDB_URL=http://influxdb:8086
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
     restart: unless-stopped
+
   postgres:
     image: postgres:16-alpine
     container_name: ai_cta_postgres
     environment:
-      - POSTGRES_USER=n8n
-      - POSTGRES_PASSWORD=n8n_change_me
-      - POSTGRES_DB=n8n
+      - POSTGRES_USER=aicta
+      - POSTGRES_PASSWORD=aicta_change_me
+      - POSTGRES_DB=aicta
+      - POSTGRES_MULTIPLE_DATABASES=n8n,mlflow
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./init-multi-db.sh:/docker-entrypoint-initdb.d/init-multi-db.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U n8n"]
+      test: ["CMD-SHELL", "pg_isready -U aicta"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     container_name: ai_cta_redis
@@ -42,6 +65,7 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+
   n8n:
     image: n8nio/n8n:latest
     container_name: ai_cta_n8n
@@ -52,8 +76,8 @@ services:
       - DB_POSTGRESDB_HOST=postgres
       - DB_POSTGRESDB_PORT=5432
       - DB_POSTGRESDB_DATABASE=n8n
-      - DB_POSTGRESDB_USER=n8n
-      - DB_POSTGRESDB_PASSWORD=n8n_change_me
+      - DB_POSTGRESDB_USER=aicta
+      - DB_POSTGRESDB_PASSWORD=aicta_change_me
       - QUEUE_BULL_REDIS_HOST=redis
       - EXECUTIONS_MODE=queue
       - N8N_HOST=localhost
@@ -68,6 +92,124 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
     restart: unless-stopped
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.15.1
+    container_name: ai_cta_mlflow
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=postgresql+psycopg2://aicta:aicta_change_me@postgres:5432/mlflow
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - mlflow_data:/mlflow/artifacts
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri postgresql+psycopg2://aicta:aicta_change_me@postgres:5432/mlflow
+      --default-artifact-root /mlflow/artifacts
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ai_cta_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: ai_cta_grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin_change_me
+      - GF_USERS_ALLOW_SIGN_UP=false
+    depends_on:
+      - prometheus
+      - influxdb
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana-provisioning:/etc/grafana/provisioning:ro
+    restart: unless-stopped
+
+  influxdb:
+    image: influxdb:2.7-alpine
+    container_name: ai_cta_influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      - DOCKER_INFLUXDB_INIT_MODE=setup
+      - DOCKER_INFLUXDB_INIT_USERNAME=aicta
+      - DOCKER_INFLUXDB_INIT_PASSWORD=aicta_change_me
+      - DOCKER_INFLUXDB_INIT_ORG=aicta
+      - DOCKER_INFLUXDB_INIT_BUCKET=telemetry
+      - DOCKER_INFLUXDB_INIT_ADMIN_TOKEN=aicta-dev-token-change-me
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+    restart: unless-stopped
+
+  simulator:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: ai_cta_simulator
+    environment:
+      - PYTHONUNBUFFERED=1
+      - API_URL=http://api:8000
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_TOKEN=aicta-dev-token-change-me
+      - SIM_RATE_HZ=1.0
+    depends_on:
+      api:
+        condition: service_healthy
+      influxdb:
+        condition: service_started
+    command:
+      - python
+      - -c
+      - |
+        # Simple on-start smoke simulator that feeds the API.
+        # For production a dedicated simulator entrypoint belongs here.
+        import time, json, os, urllib.request
+        from ai_cta.data import generate_synthetic_stream
+        api = os.environ.get('API_URL', 'http://api:8000')
+        df = generate_synthetic_stream(n_samples=2000, random_state=42)
+        for _, row in df.iterrows():
+            payload = {
+                'timestamp': str(row['timestamp']),
+                'temperature': float(row['temperature']),
+                'vibration': float(row['vibration']),
+                'pressure': float(row['pressure']),
+            }
+            try:
+                req = urllib.request.Request(
+                    f'{api}/predict',
+                    data=json.dumps(payload).encode(),
+                    headers={'Content-Type': 'application/json'},
+                )
+                urllib.request.urlopen(req, timeout=5).read()
+            except Exception as e:  # noqa: BLE001
+                print(f'simulator: {e}')
+            time.sleep(1.0 / float(os.environ.get('SIM_RATE_HZ', '1.0')))
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   n8n_data:
+  mlflow_data:
+  prometheus_data:
+  grafana_data:
+  influxdb_data:

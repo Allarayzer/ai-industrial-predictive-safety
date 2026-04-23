@@ -1,7 +1,7 @@
 """Tests for the IndustrialSimulator."""
 import numpy as np
 import pandas as pd
-from ai_cta.utils import (
+from ai_cta.simulator import (
     IndustrialSimulator,
     SimulationEvent,
     make_failure_labels,

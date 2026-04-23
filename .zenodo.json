@@ -1,0 +1,41 @@
+{
+  "title": "AI-CTA: AI-Industrial Predictive Safety",
+  "description": "<p>Reference implementation of a predictive safety framework for high-hazard industrial facilities, implementing the algorithms and architecture described in the accompanying monograph <em>Artificial Intelligence for Preventing Accidents at High-Risk Industrial Facilities</em> (Serebriakov, 2026).</p><p>The package provides: IsolationForest + LSTM anomaly detection, RUL quantile regression, neural risk estimation, three-component hybrid risk aggregation with SLSQP weight calibration on the 2-simplex, conformal threshold calibration for controlled false-alarm rate, PSI + KS distribution drift detection, online recalibration, a FastAPI REST service, a Docker-compose production stack (9 containers), 62 unit + integration tests, and reproducibility benchmarks on NASA C-MAPSS (turbofan RUL) and CWRU Bearing (fault classification) datasets.</p><p>Ablation and baseline comparison scripts are included for reviewers of Scopus / IEEE journals.</p>",
+  "creators": [
+    {
+      "name": "Serebriakov, Ilia",
+      "affiliation": "Engineering Science, Borough of Manhattan Community College, CUNY",
+      "orcid": "0009-0009-1548-390X"
+    }
+  ],
+  "keywords": [
+    "industrial AI",
+    "predictive maintenance",
+    "anomaly detection",
+    "isolation forest",
+    "LSTM",
+    "conformal prediction",
+    "remaining useful life",
+    "drift detection",
+    "condition monitoring",
+    "functional safety",
+    "IEC 61508",
+    "high-hazard industrial facilities",
+    "SCADA",
+    "n8n"
+  ],
+  "license": "MIT",
+  "access_right": "open",
+  "upload_type": "software",
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/Allarayzer/ai-industrial-predictive-safety",
+      "relation": "isSupplementTo",
+      "resource_type": "software"
+    }
+  ],
+  "communities": [
+    {"identifier": "reliability-engineering"},
+    {"identifier": "industrial-ai"}
+  ]
+}

@@ -1,0 +1,30 @@
+# Prometheus scrape config for the AI-CTA stack.
+# See monograph § 12.5 for the reference observability topology.
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'ai_cta_api'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['api:8000']
+
+  - job_name: 'n8n'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['n8n:5678']
+
+  - job_name: 'mlflow'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['mlflow:5000']
+
+  - job_name: 'influxdb'
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['influxdb:8086']

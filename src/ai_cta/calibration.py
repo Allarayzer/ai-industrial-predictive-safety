@@ -16,7 +16,7 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Optional
 import numpy as np
-from ai_cta.risk.conformal import ConformalThresholdCalibrator
+from ai_cta.risk_model import ConformalThresholdCalibrator
 
 __all__ = ["OnlineCalibrator", "CalibrationUpdate"]
 

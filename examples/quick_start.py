@@ -17,13 +17,10 @@ from ai_cta import (
     RiskScorer,
     SafetyPipeline,
 )
-from ai_cta.risk.scoring import ChannelLimits
-from ai_cta.streaming.pipeline import PipelineEvent
-from ai_cta.utils import (
-    evaluate_binary_detector,
-    generate_synthetic_stream,
-    inject_anomalies,
-)
+from ai_cta.risk_model import ChannelLimits
+from ai_cta.pipeline import PipelineEvent
+from ai_cta.data import generate_synthetic_stream, inject_anomalies
+from ai_cta.evaluation import evaluate_binary_detector
 
 def main() -> None:
     # ---------- 1-2. Data ------------------------------------------------
