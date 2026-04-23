@@ -76,6 +76,40 @@ expected reproduction protocol.
       48k_DE/    # high-sampling-rate fault files
   ```
 
+### Bosch CNC Machining Dataset (cross-domain real-world vibration)
+
+- **Source:** Robert Bosch GmbH / Technical University of Munich.
+  Publication: Tnani, Feil, Diepold (2022), *Procedia CIRP* 107, 131–136.
+  DOI: `10.1016/j.procir.2022.04.022`.
+- **Repository:** <https://github.com/boschresearch/CNC_Machining>
+- **Version pinned in the monograph:** commit `d60581d` (2024-06-06).
+  Later releases may have ±5–10 extra recordings.
+- **Licences:** CC-BY-4.0 (data) + BSD-3-Clause (code).
+- **Contents:** tri-axial accelerometer (Bosch CISS) readings from three
+  brownfield CNC milling machines (M01, M02, M03) executing 15 process
+  types (OP00–OP14) over 2018-10..2021-08. Each recording is roughly
+  268k samples × 3 axes at 2 kHz (~134 s — one process cycle). Labels:
+  `good` (normal) or `bad` (process anomaly / tool wear). 1 632 normal
+  + 70 anomalous recordings (imbalance ≈ 1:23 pooled, up to 1:59 on M03).
+- **Task:** per-machine anomaly detection (normal vs faulted process).
+- **Download:** clone the repo — data lives in `data/M0N/OPNN/{good,bad}/*.h5`.
+  ~911 MB total.
+- **Expected layout after cloning/symlinking:**
+  ```
+  benchmarks/data/bosch/data/M01/OP00/good/*.h5
+  benchmarks/data/bosch/data/M01/OP00/bad/*.h5
+  ... (M01–M03, OP00–OP14, good/bad)
+  ```
+- **Benchmark script:** `benchmarks/run_bosch_benchmark.py` — extracts
+  27 vibration features (9 per axis × 3: mean, std, RMS, crest factor,
+  peak-to-peak, dominant FFT bin, spectral entropy, skewness, kurtosis),
+  fits IsolationForest on the first 70 % normal recordings (time-based
+  split, no data leakage), thresholds at the 95th percentile of train
+  scores, and evaluates on the remaining 30 % normal + all anomalous.
+- **Reference results (commit `d60581d`, seed 42):** M01 F1=0.77,
+  ROC-AUC=0.92; pooled ROC-AUC=0.85 across 3 machines. See monograph
+  Appendix 13.A.2 (Experiment E7) and `benchmarks/results/bosch_results.csv`.
+
 ### Optional: FEMTO PHM 2012 Bearings
 
 - **Source:** FEMTO-ST Institute.

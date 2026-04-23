@@ -172,6 +172,7 @@ baseline-comparison scripts for Scopus-paper reviewers.
 |--------|---------|
 | [`benchmarks/run_cmapss_benchmark.py`](benchmarks/run_cmapss_benchmark.py) | NASA C-MAPSS (FD001–FD004) — turbofan RUL / degradation flag |
 | [`benchmarks/run_cwru_benchmark.py`](benchmarks/run_cwru_benchmark.py)   | CWRU Bearing — fault classification |
+| [`benchmarks/run_bosch_benchmark.py`](benchmarks/run_bosch_benchmark.py) | Bosch CNC Machining — cross-domain vibration anomaly detection (3 real brownfield machines) |
 | [`benchmarks/run_ablation.py`](benchmarks/run_ablation.py)               | Ablation of 3-component hybrid risk (monograph § 8.4) |
 | [`benchmarks/run_baselines.py`](benchmarks/run_baselines.py)             | IsolationForest vs LOF vs OC-SVM vs z-score |
 
@@ -181,6 +182,7 @@ then run, e.g.:
 ```bash
 python benchmarks/run_cmapss_benchmark.py
 python benchmarks/run_cwru_benchmark.py
+python benchmarks/run_bosch_benchmark.py
 python benchmarks/run_ablation.py  --n-seeds 10
 python benchmarks/run_baselines.py --n-seeds 10
 ```
