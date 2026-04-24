@@ -62,7 +62,7 @@ class XGBoostQuantileRegressor:
         self.rul_max = rul_max
         self.random_state = random_state
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "XGBoostQuantileRegressor":
+    def fit(self, X: np.ndarray, y: np.ndarray) -> XGBoostQuantileRegressor:
         try:
             import xgboost as xgb
         except ImportError as exc:  # pragma: no cover
@@ -154,7 +154,7 @@ class PhysicsGuidedRUL:
         self.warning_threshold_cycles = warning_threshold_cycles
         self.params_: WeibullParams | None = None
 
-    def fit(self, failure_times: np.ndarray) -> "PhysicsGuidedRUL":
+    def fit(self, failure_times: np.ndarray) -> PhysicsGuidedRUL:
         """Fit Weibull parameters by method-of-moments on failure times."""
         failure_times = np.asarray(failure_times, dtype=np.float64)
         failure_times = failure_times[failure_times > 0]
@@ -169,8 +169,8 @@ class PhysicsGuidedRUL:
             return self
 
         # Method of moments: (mean/std)^2 ~ function of shape
-        from scipy.special import gamma
         from scipy.optimize import brentq
+        from scipy.special import gamma
 
         mean = float(failure_times.mean())
         std = float(failure_times.std(ddof=1))
@@ -279,7 +279,7 @@ class RULEnsemble:
         X_sequential_val: pd.DataFrame | None = None,
         elapsed_val: np.ndarray | None = None,
         y_val: np.ndarray | None = None,
-    ) -> "RULEnsemble":
+    ) -> RULEnsemble:
         self.model_a_ = model_a
         self.model_b_ = model_b
         self.model_c_ = model_c if self.use_physics else None
