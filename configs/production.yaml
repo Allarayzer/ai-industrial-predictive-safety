@@ -1,0 +1,83 @@
+# configs/production.yaml
+#
+# Production environment overrides for the ai-cta reference
+# implementation. Referenced by monograph § 10.11.
+#
+# At runtime production deployments merge this file on top of
+# configs/default.yaml (default config ships tuned for benchmarks).
+# Any value not present here falls through to the default.
+#
+# Conventions:
+#   - Everything under env: must be resolved from environment
+#     variables (never hard-code secrets here).
+#   - All thresholds are expected to be re-calibrated per asset;
+#     the values below are safe starting points only.
+
+env:
+  mlflow_tracking_uri: "${MLFLOW_TRACKING_URI}"
+  database_url:        "${DATABASE_URL}"
+  alert_webhook:       "${ALERT_WEBHOOK_URL}"
+  n8n_base_url:        "${N8N_BASE_URL:-http://n8n:5678}"
+
+# Override the default SLSQP risk-aggregation cost asymmetry for
+# safety-critical contexts: false negatives cost ~100× more than
+# false positives in nuclear / chemical applications.
+risk_aggregator:
+  thresholds:
+    warning:   0.25   # slightly more conservative than benchmark default 0.30
+    critical:  0.55
+    emergency: 0.80
+  costs:
+    cost_fn: 100.0
+    cost_fp: 1.0
+
+# Production anomaly detector uses a narrower contamination setting
+# and a larger Isolation Forest ensemble for stability.
+anomaly_detector:
+  isolation_forest:
+    n_estimators: 500
+    contamination: 0.005
+  calibration:
+    alpha: 0.01            # target 1 % false-alarm rate (vs 5 % benchmark)
+    min_calibration_samples: 2000
+
+# Online calibrator recalibrates daily on new observations.
+online_calibrator:
+  schedule_seconds: 86400
+  buffer_size: 20000
+  min_recalibrate: 5000
+
+# Drift detector — more conservative to avoid alert fatigue in production.
+drift_detector:
+  psi_threshold: 0.35
+  ks_alpha: 0.001
+
+# Pipeline behaviour in production.
+pipeline:
+  warmup_samples: 5000
+  alert_webhook: "${ALERT_WEBHOOK_URL}"
+
+# API settings — multiple uvicorn workers behind a reverse proxy.
+api:
+  host: 0.0.0.0
+  port: 8000
+  workers: 4
+  log_level: warning
+
+# Model registry (MLflow).
+mlflow:
+  experiment_name: "ai-cta-production"
+  model_name: "ai_cta_hybrid_risk"
+  model_stage: "Production"
+
+# Observability.
+logging:
+  level: WARNING
+  format: json
+  sink_file: /var/log/ai_cta/service.log
+
+# Safety-critical overrides — keep the fallbacks always-on in production.
+safety:
+  enable_watchdog: true
+  enable_dead_man_switch: true
+  emergency_recipient: "${ONCALL_EMAIL}"
