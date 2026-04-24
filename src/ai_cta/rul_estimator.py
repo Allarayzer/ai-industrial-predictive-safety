@@ -1,8 +1,19 @@
 """Remaining Useful Life (RUL) estimation via quantile regression.
-Implements the algorithm described in Chapter 9.6 and 10.6 of the
-accompanying monograph: an LSTM-based quantile regressor that produces
-a predictive distribution over the remaining useful life of a unit at
-each timestep, rather than a single point estimate.
+Implements Model B of the three-model ensemble specified in Chapter 9.6
+and 10.6 of the accompanying monograph: an LSTM-based quantile regressor
+that produces a predictive distribution over the remaining useful life
+of a unit at each timestep, rather than a single point estimate.
+
+Companion implementations of Models A (XGBoost quantile) and C (Weibull
+physics-guided) live in ai_cta.rul_ensemble; the full stacked ensemble
+is :class:`ai_cta.rul_ensemble.RULEnsemble`. The benchmark driver
+`benchmarks/run_cmapss_rul_normalized.py --full-ensemble` runs all three
+jointly and reports pinball-optimised stacked predictions.
+
+The monograph's headline RUL figures (Table 13.3) are produced by this
+module in isolation (Model B only). The full 3-model ensemble is
+reported separately in `docs/benchmarks.md` and Appendix 13.A.
+
 The quantile formulation provides naturally calibrated confidence
 intervals — the 10th and 90th percentile predictions bracket the true
 RUL with the configured nominal coverage when the model is well-fit.

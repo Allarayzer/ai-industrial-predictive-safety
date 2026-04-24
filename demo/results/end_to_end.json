@@ -1,0 +1,34 @@
+{
+  "stage_1": {
+    "train_len": 2500,
+    "test_len": 1500,
+    "anomalies": 490
+  },
+  "stage_2": {
+    "threshold": 0.8952568902260754
+  },
+  "stage_3": {
+    "risk_max": 0.5978809904590973,
+    "risk_mean": 0.2668409800291384
+  },
+  "stage_4": {
+    "weights": [
+      0.0,
+      1.0,
+      0.0
+    ],
+    "r_final_max": 1.0
+  },
+  "stage_5": {
+    "n_windows": 6,
+    "n_drift": 6
+  },
+  "stage_6": {
+    "recalibrations": 1
+  },
+  "stage_7": {
+    "events": 1437,
+    "alerts": 1
+  },
+  "total_seconds": 8.4
+}

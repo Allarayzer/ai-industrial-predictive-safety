@@ -1,0 +1,249 @@
+openapi: 3.1.0
+info:
+  title: AI-CTA Predictive Safety API
+  description: Reference REST service for the AI-Industrial-Safety pipeline. See accompanying
+    monograph, Chapter 10.8.
+  version: 1.1.0
+paths:
+  /health:
+    get:
+      summary: Health
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /version:
+    get:
+      summary: Version
+      operationId: version_version_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VersionResponse'
+  /score-batch:
+    post:
+      summary: Score Batch
+      description: Score a batch of readings as a single window.
+      operationId: score_batch_score_batch_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                items:
+                  $ref: '#/components/schemas/ScoreResponse'
+                type: array
+                title: Response Score Batch Score Batch Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /score:
+    post:
+      summary: Score Single
+      description: 'Score a single reading by appending it to a synthetic prefix.
+
+
+        This is the canonical single-sample endpoint referenced in monograph
+
+        § 10.8. Registered under both ``/predict`` (book-canonical) and
+
+        ``/score`` (legacy alias) so integrations written against either
+
+        spelling continue to work.
+
+
+        Useful for smoke testing. For real streaming scoring, send batches
+
+        of at least ``window_size`` readings via ``/score-batch``.'
+      operationId: score_single_score_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SensorReading'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /predict:
+    post:
+      summary: Score Single
+      description: 'Score a single reading by appending it to a synthetic prefix.
+
+
+        This is the canonical single-sample endpoint referenced in monograph
+
+        § 10.8. Registered under both ``/predict`` (book-canonical) and
+
+        ``/score`` (legacy alias) so integrations written against either
+
+        spelling continue to work.
+
+
+        Useful for smoke testing. For real streaming scoring, send batches
+
+        of at least ``window_size`` readings via ``/score-batch``.'
+      operationId: score_single_predict_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SensorReading'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    BatchRequest:
+      properties:
+        readings:
+          items:
+            $ref: '#/components/schemas/SensorReading'
+          type: array
+          title: Readings
+      type: object
+      required:
+      - readings
+      title: BatchRequest
+      description: Batch of sensor readings.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HealthResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+        pipeline_ready:
+          type: boolean
+          title: Pipeline Ready
+      type: object
+      required:
+      - status
+      - pipeline_ready
+      title: HealthResponse
+    ScoreResponse:
+      properties:
+        timestamp:
+          type: string
+          title: Timestamp
+        anomaly_score:
+          type: number
+          title: Anomaly Score
+        risk_score:
+          type: number
+          title: Risk Score
+        risk_level:
+          type: string
+          title: Risk Level
+      type: object
+      required:
+      - timestamp
+      - anomaly_score
+      - risk_score
+      - risk_level
+      title: ScoreResponse
+      description: One row of pipeline output.
+    SensorReading:
+      properties:
+        timestamp:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Timestamp
+          description: ISO-8601 timestamp; auto-filled if omitted.
+        temperature:
+          type: number
+          title: Temperature
+        vibration:
+          type: number
+          title: Vibration
+        pressure:
+          type: number
+          title: Pressure
+      type: object
+      required:
+      - temperature
+      - vibration
+      - pressure
+      title: SensorReading
+      description: Single sensor reading payload.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    VersionResponse:
+      properties:
+        package_version:
+          type: string
+          title: Package Version
+      type: object
+      required:
+      - package_version
+      title: VersionResponse
