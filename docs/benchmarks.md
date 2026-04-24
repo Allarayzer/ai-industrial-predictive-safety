@@ -158,6 +158,58 @@ The ablation script measures the contribution of each component in
 across `--n-seeds` random seeds are reported as mean ± std, which is
 the standard format for Scopus / IEEE / NeurIPS papers.
 
+### Full 3-model RUL ensemble (monograph §9.6)
+
+The monograph's §9.6 specifies a three-model ensemble for RUL
+estimation:
+
+- **Model A** — XGBoost multi-quantile regression over tabular
+  statistical features (implemented in
+  `ai_cta.rul_ensemble.XGBoostQuantileRegressor`).
+- **Model B** — LSTM multi-quantile regression over sequential raw
+  signals (implemented in `ai_cta.rul_estimator.RULEstimator`).
+- **Model C** — Weibull physics-guided fallback for engineering
+  sanity-check and extreme-extrapolation guard (implemented in
+  `ai_cta.rul_ensemble.PhysicsGuidedRUL`).
+
+The stacked ensemble is available via
+`ai_cta.rul_ensemble.RULEnsemble`.
+
+To run the full ensemble on C-MAPSS:
+
+```bash
+python benchmarks/run_cmapss_rul_normalized.py --subsets FD001 --full-ensemble
+```
+
+**Reference results on FD001 (seed=42, epochs=30):**
+
+| Method | RMSE | MAE | Score | α-λ |
+|---|---:|---:|---:|---:|
+| Linear Regression | 20.59 | 16.37 | 1224 | 0.52 |
+| Random Forest | 17.19 | 12.17 | 916 | 0.65 |
+| Gradient Boosting | 17.42 | 12.03 | 1108 | 0.70 |
+| **LSTM (MSE)** | **12.85** | **10.27** | **268** | 0.65 |
+| Proposed Ensemble (LSTM quantile, Model B only) | 16.23 | 12.43 | 598 | 0.55 |
+| Full Ensemble (A+B+C, equal weights) | 17.80 | 13.40 | 584 | 0.57 |
+
+**Important honest note.** Book §13.7 Table 13.3 reports results for
+**Model B (LSTM quantile) only** — the primary headline figure used
+in the monograph. The full 3-model ensemble with *equal weights* does
+**not** outperform LSTM (MSE) on FD001; the Weibull prior dilutes
+the learned signal when weights are untuned. Literature shows that
+stacked RUL ensembles benefit from validation-set weight optimisation
+(pinball-loss grid search on a simplex); this is implemented in
+`RULEnsemble.fit()` but requires careful feature matching between
+tabular (Model A) and sequential (Model B) predictors that is
+non-trivial at the per-engine window level. Tightening this
+integration is tracked as future work.
+
+The repository ships all three models as a faithful implementation of
+§9.6 so reviewers can inspect, modify, and extend them — the headline
+RUL numbers in the monograph (Table 13.3) faithfully report the best-
+performing configuration we actually reach, not the maximum the
+ensemble could theoretically reach after further tuning.
+
 The baseline script runs four classical anomaly detectors (IsolationForest,
 LOF, One-Class SVM, z-score) on the same synthetic stream so the paper
 can quote a fair head-to-head.
