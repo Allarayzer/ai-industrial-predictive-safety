@@ -319,7 +319,7 @@ review under the applicable regulatory framework (e.g., IEC 61508,
 ISO 13849, IEC 62443 for industrial cybersecurity).
 ## Author
 **Ilia Serebriakov**
-Engineering Science, Borough of Manhattan Community College, CUNY
+Engineering Science, The City University of New York (CUNY)
 New York, NY, USA
 - ORCID: [0009-0009-1548-390X](https://orcid.org/0009-0009-1548-390X)
 - Email: allarayzer@gmail.com
