@@ -32,9 +32,9 @@
   "upload_type": "software",
   "related_identifiers": [
     {
-      "identifier": "https://github.com/Allarayzer/ai-industrial-predictive-safety",
+      "identifier": "10.5281/zenodo.19995511",
       "relation": "isSupplementTo",
-      "resource_type": "software"
+      "resource_type": "publication-book"
     }
   ],
   "communities": [

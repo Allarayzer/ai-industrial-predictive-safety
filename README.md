@@ -4,7 +4,7 @@
 [![CI](https://github.com/Allarayzer/ai-industrial-predictive-safety/actions/workflows/ci.yml/badge.svg)](https://github.com/Allarayzer/ai-industrial-predictive-safety/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-1.1.0-brightgreen.svg)](CHANGELOG.md)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0009--1548--390X-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0009-0009-1548-390X)
-[![DOI](https://img.shields.io/badge/DOI-pending-lightgrey.svg)](https://zenodo.org/)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19995511.svg)](https://doi.org/10.5281/zenodo.19995511)
 > Reference implementation of a predictive safety framework for high-hazard
 > industrial facilities. Integrates Isolation Forest, LSTM, RUL quantile
 > regression, neural risk modelling, conformal calibration, and three-component
@@ -19,7 +19,47 @@ that targets the narrow window between the first deviation from nominal
 behaviour and the onset of failure.
 The code accompanies the monograph:
 > Serebriakov, I. (2026). *Artificial Intelligence for Preventing Accidents
-> at High-Risk Industrial Facilities.* Ridero.
+> at High-Risk Industrial Facilities* (1.1.0, 1st ed.). Zenodo.
+> https://doi.org/10.5281/zenodo.19995511
+
+## Abstract
+This monograph presents a comprehensive study of artificial intelligence
+(AI) methods applied to accident prevention at high-hazard industrial
+facilities — nuclear power plants, chemical plants, transportation hubs,
+and critical energy infrastructure. The work integrates a theoretical
+analysis of industrial accident causation, a critical review of existing
+safety engineering methods, an original multi-layer AI architecture, and
+an open-source reference implementation.
+
+The principal scientific contributions of this monograph are: (1) the
+design of a unified AI-Industrial-Safety architecture that integrates
+three AI layers — machine learning, computer vision, and digital twins —
+with industrial SCADA infrastructure through low-code workflow
+orchestration; (2) the formalization of a hybrid risk function combining
+an anomaly-based score, a remaining-useful-life (RUL) forecast, and a
+neural-network integrated risk estimate, with an SLSQP weight-calibration
+procedure that adaptively identifies the dominant risk component per task;
+(3) the publication of an open reference project that provides a
+reproducible implementation of the proposed algorithms; (4) a comparative
+analysis of the proposed approach against five leading industrial
+predictive analytics platforms; and (5) an implementation methodology
+that enables AI integration without disruptive reengineering of existing
+production infrastructure.
+
+The software implementation is validated on three benchmark industrial
+datasets — NASA C-MAPSS (turbofan engines), CWRU (bearing faults), and
+Bosch CNC (machining anomalies) — and incorporates conformal threshold
+calibration for controlled false-positive rates and PSI/KS-based
+concept-drift detection for production-grade monitoring.
+
+The work is relevant for industrial safety engineers, automation and
+control specialists, digital twin developers, reliability engineering
+researchers, and industrial AI practitioners. The proposed solutions are
+aligned with current international standards for functional safety
+(IEC 61508/61511), risk management (ISO 31000), and ethical application
+of AI in safety-critical systems (IEEE 7000-2021, NIST AI Risk Management
+Framework).
+
 ## Features
 - **Multi-family feature extractors** for multivariate sensor streams:
   statistical moments, crest factor, rolling-window aggregations, and
