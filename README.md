@@ -318,7 +318,9 @@ the accompanying monograph:
   title     = {Artificial Intelligence for Preventing Accidents
                at High-Risk Industrial Facilities},
   year      = {2026},
-  publisher = {Ridero},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.19995511},
+  url       = {https://doi.org/10.5281/zenodo.19995511},
 }
 ```
 
