@@ -4,7 +4,7 @@
 [![CI](https://github.com/Allarayzer/ai-industrial-predictive-safety/actions/workflows/ci.yml/badge.svg)](https://github.com/Allarayzer/ai-industrial-predictive-safety/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-1.1.0-brightgreen.svg)](CHANGELOG.md)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0009--1548--390X-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0009-0009-1548-390X)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19995511.svg)](https://doi.org/10.5281/zenodo.19995511)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20535197.svg)](https://doi.org/10.5281/zenodo.20535197)
 > Reference implementation of a predictive safety framework for high-hazard
 > industrial facilities. Integrates Isolation Forest, LSTM, RUL quantile
 > regression, neural risk modelling, conformal calibration, and three-component
@@ -20,7 +20,7 @@ behaviour and the onset of failure.
 The code accompanies the monograph:
 > Serebriakov, I. (2026). *Artificial Intelligence for Preventing Accidents
 > at High-Risk Industrial Facilities* (1.1.0, 1st ed.). Zenodo.
-> https://doi.org/10.5281/zenodo.19995511
+> https://doi.org/10.5281/zenodo.20535197
 
 ## Abstract
 This monograph presents a comprehensive study of artificial intelligence
@@ -319,8 +319,8 @@ the accompanying monograph:
                at High-Risk Industrial Facilities},
   year      = {2026},
   publisher = {Zenodo},
-  doi       = {10.5281/zenodo.19995511},
-  url       = {https://doi.org/10.5281/zenodo.19995511},
+  doi       = {10.5281/zenodo.20535197},
+  url       = {https://doi.org/10.5281/zenodo.20535197},
 }
 ```
 

@@ -43,8 +43,8 @@ references:
     year: 2026
     publisher:
       name: Zenodo
-    doi: "10.5281/zenodo.19995511"
-    url: "https://doi.org/10.5281/zenodo.19995511"
+    doi: "10.5281/zenodo.20535197"
+    url: "https://doi.org/10.5281/zenodo.20535197"
     notes: "Companion monograph deposited on Zenodo (CC-BY-4.0)."
   - type: conference-paper
     title: "Damage Propagation Modeling for Aircraft Engine Run-to-Failure Simulation"

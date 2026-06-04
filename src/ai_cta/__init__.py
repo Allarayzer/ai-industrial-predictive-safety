@@ -3,7 +3,7 @@ Reference implementation of predictive safety AI for high-hazard industrial
 facilities. Companion code to the monograph:
     Serebriakov, I. (2026). Artificial Intelligence for Preventing Accidents
     at High-Risk Industrial Facilities. Zenodo.
-    https://doi.org/10.5281/zenodo.19995511
+    https://doi.org/10.5281/zenodo.20535197
 Main components
 ---------------
 - Feature engineering for industrial sensor time series
