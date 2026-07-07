@@ -18,6 +18,7 @@ authors:
     email: allarayzer@gmail.com
 version: "1.1.0"
 date-released: "2026-04-22"
+doi: "10.5281/zenodo.21145078"
 repository-code: "https://github.com/Allarayzer/ai-industrial-predictive-safety"
 url: "https://github.com/Allarayzer/ai-industrial-predictive-safety"
 license: MIT
