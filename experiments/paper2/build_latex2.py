@@ -99,8 +99,10 @@ def main() -> None:
 
     data_availability = (
         "\n# Data availability {-}\n\n"
-        "The NASA C-MAPSS turbofan simulation and the NASA Ames "
-        "lithium-ion battery aging experiments are public benchmark datasets; the exact "
+        "The NASA C-MAPSS turbofan simulation, the NASA Ames "
+        "lithium-ion battery aging experiments, and the NASA Randomized Battery Usage "
+        "experiments (Prognostics Data Repository; Zenodo mirror "
+        "https://doi.org/10.5281/zenodo.15277374) are public benchmark datasets; the exact "
         "transported battery CSV is archived in the supplementary research archive with its "
         "SHA-256 checksum. All raw and aggregate result files behind every table and figure, "
         "per-event traces, and a claim-to-file provenance map are included in the supplementary "

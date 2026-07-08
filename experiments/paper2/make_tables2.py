@@ -144,6 +144,9 @@ def supplement():
         SUP / "S10_randomized_shift_summary.csv", index=False)
     pd.read_csv(RES / "randomized_shift_results.csv").to_csv(
         SUP / "S10raw_randomized_shift_results.csv", index=False)
+    # S11: NASA Randomized Battery Usage replication
+    pd.read_csv(RES / "rw_summary.csv").to_csv(SUP / "S11_rw_battery_summary.csv", index=False)
+    pd.read_csv(RES / "rw_fold_results.csv").to_csv(SUP / "S11raw_rw_fold_results.csv", index=False)
     print("  supplement S1-S5 CSVs")
 
 

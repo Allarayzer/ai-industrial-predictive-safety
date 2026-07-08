@@ -131,6 +131,21 @@ parts.append("\n\n## Supplementary Table S9. Governed-controller constants — o
              "frequency (review_every = 24 cycles, cost 0.210), which shows the cost advantage "
              "requires reviews at a cadence comparable to the label delay.\n\n" + md_table(s9))
 
+s11 = pd.read_csv(SUP / "S11_rw_battery_summary.csv")
+parts.append("\n\n## Supplementary Table S11. Twelve-cell replication — NASA Randomized Battery Usage\n\n"
+             "Cell-macro results over twelve room-temperature randomized-usage cells (RW1-RW12; "
+             "12 folds, each cell tested once within its four-cell usage group). The unit of "
+             "analysis is the fixed-current reference discharge (21-79 per cell); capacity is "
+             "coulomb-counted and the near-end horizon is 15% of each cell's series. Static "
+             "calibration and the governed controller finish essentially tied (MCC 0.572 vs "
+             "0.560); the governed policy accepted no weight actions and matched static behaviour "
+             "exactly on ten of twelve cells; continuous ACI and SF-OGD degrade sharply. Two "
+             "cells raised no alarms under any policy: on RW3 the fused ranking itself failed "
+             "(test ROC-AUC 0.586; a real-data model-drift instance where review, not adaptation, "
+             "is the appropriate action), and on RW6 the cross-cell threshold sat above the "
+             "entire 21-cycle test series. Per-fold results in S11raw_rw_fold_results.csv.\n\n"
+             + md_table(s11))
+
 s10 = pd.read_csv(SUP / "S10_randomized_shift_summary.csv")
 parts.append("\n\n## Supplementary Table S10. Randomized-shift robustness of the location-shift ranking\n\n"
              "Thirty shift configurations drawn at random from ranges not used when the policies "
