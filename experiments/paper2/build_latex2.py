@@ -94,7 +94,10 @@ def main() -> None:
         "\\noindent\\textbf{Abstract.}\n"
         "```\n\n"
         + abstract
-        + "\n\n```{=latex}\n\\vspace{0.5em}\\hrule\\vspace{1em}\n```\n"
+        + "\n\n```{=latex}\n\\vspace{0.6em}\\noindent\\textbf{Keywords:} "
+        "predictive safety; prognostics and health management; distribution shift; "
+        "conformal calibration; online risk fusion; concept drift; alarm management"
+        "\\vspace{0.4em}\\hrule\\vspace{1em}\n```\n"
     )
 
     data_availability = (

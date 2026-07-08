@@ -161,7 +161,14 @@ parts.append("\n\n## Supplementary Table S12. Failure-mode diagnosis — confusi
              "ranking to 1.5 once a channel fails; escalations rise from <=0.2 to 22.1 only when "
              "all channels lose ranking.\n\n" + md_table(s12b) +
              "\n\n**(c) Per-regime summary** (diagnostic-action rates and median detection delay "
-             "in events from onset to the first correct structural action).\n\n" + md_table(s12c))
+             "in events from onset to the first correct structural action).\n\n" + md_table(s12c) +
+             "\n\n**(d) Verdict-threshold sensitivity.** The per-stream confusion is unchanged as "
+             "the escalation cutoff is varied from two to five escalations (channel-reliability "
+             "diagnosed as a reweight in 10/10 and model drift as an escalation in 10/10 at every "
+             "cutoff), confirming the diagnosis is not an artifact of the chosen threshold. Erroneous "
+             "single reweights in the ranking-preserved regimes left post-onset MCC and expected "
+             "cost within 0.004 of the no-action streams.\n\n"
+             + md_table(pd.read_csv(SUP / "S12d_diagnosis_threshold_sensitivity.csv")))
 
 s9b = pd.read_csv(SUP / "S9b_unified_config.csv")
 parts.append("\n\n## Supplementary Table S9b. Unified dimensionless controller configuration\n\n"

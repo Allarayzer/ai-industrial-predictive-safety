@@ -123,18 +123,26 @@ def run_controller(comp, y, seed, regime):
                         q = nq; action = "threshold"
             reviews.append(dict(regime=regime, seed=seed, event=CAL + i,
                                 post=int(CAL + i >= ONSET), action=action, max_auc=max_auc))
-    return reviews
+    # stream-level outcome (post-onset window) to test whether stray structural actions hurt
+    post0 = ONSET - CAL
+    m = mod.metrics(yy[post0:], p[post0:], s_dyn[post0:])
+    stream = dict(regime=regime, seed=seed, post_mcc=m['mcc'], post_cost=m['expected_cost'],
+                  post_far=m['far'])
+    return reviews, stream
 
 
 def main():
-    all_reviews = []
+    all_reviews = []; streams = []
     for regime in ["none", "calibration", "channel", "model"]:
         for seed in range(10):
             comp, y = build_regime(seed, regime)
-            all_reviews.extend(run_controller(comp, y, seed, regime))
+            revs, stream = run_controller(comp, y, seed, regime)
+            all_reviews.extend(revs); streams.append(stream)
         print(f"regime {regime} done", flush=True)
     R = pd.DataFrame(all_reviews)
     R.to_csv(OUT / "diagnosis_reviews.csv", index=False)
+    SM = pd.DataFrame(streams)
+    SM.to_csv(OUT / "diagnosis_stream_metrics.csv", index=False)
 
     post = R[R.post == 1].copy()
     order_reg = ["none", "calibration", "channel", "model"]
@@ -163,6 +171,36 @@ def main():
     conf = (diag.groupby(["regime", "diagnosis"]).size().unstack(fill_value=0)
             .reindex(index=order_reg, columns=order_diag, fill_value=0))
     conf.to_csv(OUT / "diagnosis_confusion.csv")
+
+    # Verdict-threshold sensitivity: is the confusion matrix stable to the escalation cutoff?
+    def diag_thr(g, e_thr, w_thr=1):
+        e = (g.action == "escalation").sum(); w = (g.action == "weight").sum()
+        if e >= e_thr: return "escalate (model)"
+        if w >= w_thr: return "reweight (channel)"
+        return "no structural action"
+    sens_rows = []
+    for e_thr in [2, 3, 4, 5]:
+        d2 = post.groupby(["regime", "seed"]).apply(lambda g: diag_thr(g, e_thr), include_groups=False)
+        d2 = d2.rename("diagnosis").reset_index()
+        c2 = (d2.groupby(["regime", "diagnosis"]).size().unstack(fill_value=0)
+              .reindex(index=order_reg, columns=order_diag, fill_value=0))
+        sens_rows.append(dict(escalation_threshold=e_thr,
+                              channel_correct=int(c2.loc["channel", "reweight (channel)"]),
+                              model_correct=int(c2.loc["model", "escalate (model)"]),
+                              noshift_no_action=int(c2.loc["none", "no structural action"]),
+                              calibration_no_action=int(c2.loc["calibration", "no structural action"])))
+    pd.DataFrame(sens_rows).to_csv(OUT / "diagnosis_threshold_sensitivity.csv", index=False)
+
+    # Did stray reweights in ranking-preserved regimes degrade stream metrics?
+    stray = SM.copy()
+    stray = stray.merge(diag, on=["regime", "seed"])
+    for reg in ["none", "calibration"]:
+        sub = stray[stray.regime == reg]
+        rw = sub[sub.diagnosis == "reweight (channel)"]; nn = sub[sub.diagnosis == "no structural action"]
+        if len(rw) and len(nn):
+            print(f"[{reg}] stray-reweight streams post_mcc mean {rw.post_mcc.mean():.3f} vs "
+                  f"no-action {nn.post_mcc.mean():.3f}; post_cost {rw.post_cost.mean():.3f} vs "
+                  f"{nn.post_cost.mean():.3f}", flush=True)
 
     rows = []
     for regime in order_reg:

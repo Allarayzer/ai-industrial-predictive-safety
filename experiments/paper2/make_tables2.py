@@ -151,6 +151,7 @@ def supplement():
     pd.read_csv(RES / "diagnosis_confusion.csv").to_csv(SUP / "S12_diagnosis_confusion.csv", index=False)
     pd.read_csv(RES / "diagnosis_action_counts.csv").to_csv(SUP / "S12b_diagnosis_action_counts.csv", index=False)
     pd.read_csv(RES / "diagnosis_summary.csv").to_csv(SUP / "S12c_diagnosis_summary.csv", index=False)
+    pd.read_csv(RES / "diagnosis_threshold_sensitivity.csv").to_csv(SUP / "S12d_diagnosis_threshold_sensitivity.csv", index=False)
     # S9b: unified dimensionless controller configuration
     pd.read_csv(RES / "unified_config.csv").to_csv(SUP / "S9b_unified_config.csv", index=False)
     print("  supplement CSVs")
