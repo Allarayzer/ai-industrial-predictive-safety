@@ -74,3 +74,11 @@ __all__ = [
     "SafetyPipeline",
     "PipelineEvent",
 ]
+
+# P4 online-adaptation components
+from ai_cta.adaptive_calibration import (
+    GuardedRecalibrationController,
+    RegimeConformalCalibrator,
+)
+from ai_cta.adaptive_pipeline import AdaptiveSafetyPipeline
+from ai_cta.online_fusion import AsynchronousRiskFusion
