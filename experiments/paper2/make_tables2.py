@@ -137,6 +137,13 @@ def supplement():
     if "cost_macro" in s5.columns:
         s5["expected_cost_macro"] = s5["expected_cost_macro"].fillna(s5["cost_macro"])
     s5.to_csv(SUP / "S5_cmapss_engine_macro_all_methods.csv", index=False)
+    # S9: governed-controller constants sensitivity (OAT); S10: randomized-shift robustness
+    pd.read_csv(RES / "governed_sensitivity.csv").to_csv(
+        SUP / "S9_governed_sensitivity_oat.csv", index=False)
+    pd.read_csv(RES / "randomized_shift_summary.csv").to_csv(
+        SUP / "S10_randomized_shift_summary.csv", index=False)
+    pd.read_csv(RES / "randomized_shift_results.csv").to_csv(
+        SUP / "S10raw_randomized_shift_results.csv", index=False)
     print("  supplement S1-S5 CSVs")
 
 

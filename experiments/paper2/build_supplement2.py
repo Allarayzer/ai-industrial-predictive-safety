@@ -118,6 +118,32 @@ The comparison is scoped to the representative methods cited in the main text an
 exhaustive survey.
 """)
 
+s9 = pd.read_csv(SUP / "S9_governed_sensitivity_oat.csv")
+parts.append("\n\n## Supplementary Table S9. Governed-controller constants — one-at-a-time sensitivity\n\n"
+             "Each operating constant of the governed escalation controller is perturbed one at a "
+             "time around its operating value while data generation, seeds/folds, and baseline "
+             "calibration stay fixed (channel test: means over 10 seeds; battery: cell-macro over "
+             "4 folds). The '(base)' rows reproduce the main-text configuration. Across all 16 "
+             "perturbed channel configurations, post-shift MCC stays within [0.657, 0.709] — above "
+             "the best threshold-only policy (ACI, 0.589) in every case — and expected cost stays "
+             "below ACI's 0.458. On batteries, expected cost stays below the static reference "
+             "(0.174) in 15 of 16 perturbed configurations; the exception is halving the review "
+             "frequency (review_every = 24 cycles, cost 0.210), which shows the cost advantage "
+             "requires reviews at a cadence comparable to the label delay.\n\n" + md_table(s9))
+
+s10 = pd.read_csv(SUP / "S10_randomized_shift_summary.csv")
+parts.append("\n\n## Supplementary Table S10. Randomized-shift robustness of the location-shift ranking\n\n"
+             "Thirty shift configurations drawn at random from ranges not used when the policies "
+             "were designed (shape in {sudden, gradual, recurring, mixed}; onset U[4,000, 8,500]; "
+             "magnitude multiplier U[0.5, 2.0]; ramp U[200, 2,000]; recurrence period "
+             "U[300, 1,500]); one stream per configuration, all other benchmark settings as in the "
+             "main text. The policy ranking of the designed benchmark is reproduced: rolling ACI "
+             "and quantile tracking occupy the top two MCC ranks in 30/30 configurations with "
+             "post-onset FAR within [0.043, 0.096]; the guarded policy ranks third in 28/30; "
+             "static calibration ranks last or next-to-last everywhere (post-onset FAR "
+             "0.293-1.000). Per-configuration results are in the archived "
+             "S10raw_randomized_shift_results.csv.\n\n" + md_table(s10))
+
 md = OUT / "_supplement2.md"
 md.write_text("\n".join(parts))
 env = {**os.environ, "PATH": LATEX_BIN + ":" + os.environ.get("PATH", "")}
