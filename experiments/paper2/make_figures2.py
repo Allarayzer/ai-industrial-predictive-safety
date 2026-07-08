@@ -285,6 +285,66 @@ def figure5_battery():
          "per-cell results are given in the supplementary tables.")
 
 
+def figure6_diagnosis():
+    conf = pd.read_csv(RES / "diagnosis_confusion.csv", index_col=0)
+    counts = pd.read_csv(RES / "diagnosis_action_counts.csv", index_col=0)
+    reg_order = ["none", "calibration", "channel", "model"]
+    reg_labels = ["No shift", "Calibration\ndrift", "Channel-\nreliability", "Model\ndrift"]
+    conf = conf.reindex(reg_order)
+    counts = counts.reindex(reg_order)
+    fig, axes = plt.subplots(1, 2, figsize=(11.2, 4.2))
+
+    # Panel A: confusion matrix heatmap (counts out of 10 streams)
+    ax = axes[0]
+    M = conf.to_numpy(float)
+    col_labels = ["No structural\naction", "Reweight\n(channel)", "Escalate\n(model)"]
+    im = ax.imshow(M, cmap="Blues", vmin=0, vmax=10, aspect="auto")
+    ax.set_xticks(range(3)); ax.set_xticklabels(col_labels, fontsize=9)
+    ax.set_yticks(range(4)); ax.set_yticklabels(reg_labels, fontsize=9)
+    ax.set_xlabel("Controller's structural verdict", fontsize=9.5)
+    ax.set_ylabel("True failure mode", fontsize=9.5)
+    ax.set_title("Failure-mode diagnosis (streams, n=10 each)", fontsize=10.5)
+    for i in range(4):
+        for j in range(3):
+            v = int(M[i, j])
+            ax.text(j, i, str(v), ha="center", va="center", fontsize=12,
+                    color="white" if v >= 6 else "#222222", fontweight="bold")
+
+    # Panel B: per-run diagnostic-action counts, log scale (weight 0.3-1.5, escalation 0.1-22)
+    ax = axes[1]
+    x = np.arange(4); wbar = 0.36
+    ax.bar(x - wbar / 2, counts["weight"].to_numpy() + 1e-2, wbar, label="Weight actions",
+           color=OK["green"], edgecolor="#333333", linewidth=0.5)
+    ax.bar(x + wbar / 2, counts["escalation"].to_numpy() + 1e-2, wbar, label="Escalations",
+           color=OK["red"], edgecolor="#333333", linewidth=0.5)
+    ax.set_yscale("log")
+    ax.set_ylim(0.05, 40)
+    ax.set_xticks(x); ax.set_xticklabels(reg_labels, fontsize=9)
+    ax.set_ylabel("Actions per run (mean, log scale)", fontsize=9.5)
+    ax.set_title("Diagnostic actions by failure mode", fontsize=10.5)
+    ax.grid(axis="y", alpha=0.3); ax.set_axisbelow(True)
+    ax.legend(fontsize=9, frameon=False)
+    for i in range(4):
+        ax.text(i - wbar / 2, counts["weight"].iloc[i] + 0.03, f"{counts['weight'].iloc[i]:.1f}",
+                ha="center", fontsize=7.5, color="#555555")
+        ax.text(i + wbar / 2, counts["escalation"].iloc[i] + 0.03, f"{counts['escalation'].iloc[i]:.1f}",
+                ha="center", fontsize=7.5, color="#555555")
+    fig.tight_layout()
+    save(fig, 6,
+         "Figure 6. Direct evaluation of failure-mode diagnosis. The governed controller is run on "
+         "four controlled regimes with a known ground-truth failure mode (10 seeds each), logging "
+         "its structural decision at every review. Left: confusion matrix of the per-stream "
+         "structural verdict against the true failure mode (counts out of 10). The channel-"
+         "reliability regime is diagnosed as a reweight in 10/10 streams and the model-drift "
+         "regime as an escalation in 10/10; the ranking-preserved regimes (no shift, calibration "
+         "drift) are correctly handled without a structural action in 15/20 streams, the five "
+         "errors being harmless single reweights, with no false escalations anywhere. Right: mean "
+         "number of weight actions and escalations per run by regime (log scale). Weight actions "
+         "rise from 0.3 under intact ranking to 1.5 once a channel fails, and escalations rise "
+         "from at most 0.2 to 22.1 only when all channels lose ranking, so the escalation signal "
+         "cleanly separates model drift from channel-reliability drift.")
+
+
 if __name__ == "__main__":
     print("Generating Paper-2 figures ->", FIGDIR)
     figure1_architecture()
@@ -292,4 +352,5 @@ if __name__ == "__main__":
     figure3_channel()
     figure4_cmapss()
     figure5_battery()
+    figure6_diagnosis()
     print("done")

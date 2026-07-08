@@ -67,24 +67,22 @@ def table1_channel():
     print("  table1.tex")
 
 
-def table2_cmapss():
+def cmapss_supplement_table():
+    # C-MAPSS three-method engine-macro view — moved to supplement (S5b) to stay within the
+    # Scientific Reports 8-display-item budget; the all-methods S5 already exists.
     b = pd.read_csv(RES / "cmapss_engine_bootstrap.csv")
     methods = ["Static matched", "Quantile tracking", "Guarded full"]
     rows = []
     for sub in ["FD001", "FD002", "FD003", "FD004"]:
         for m in methods:
             r = b[(b.subset == sub) & (b.method == m)].iloc[0]
-            rows.append([sub, m, f"{f3(r.mcc_macro)} [{f3(r.mcc_lo)}, {f3(r.mcc_hi)}]",
-                         f3(r.far_macro), f3(r.expected_cost_macro)])
-    cap = ("Five-fold engine-disjoint C-MAPSS replay: engine-macro MCC with 95\\% engine-cluster "
-           "bootstrap intervals (5{,}000 resamples), false-alarm rate, and expected cost at the "
-           "10:1 ratio; 709 test engines in total (100/260/100/249 in FD001--FD004). C-MAPSS is "
-           "a simulation. Additional policies and the SF-OGD specialization are reported in "
-           "Supplementary Table S5.")
-    (TBL / "table2.tex").write_text(latex_table(
-        cap, ["Subset", "Policy", "MCC [95\\% CI]", "FAR", "Cost"], rows,
-        colspec="llrrr", label="tab:cmapss"))
-    print("  table2.tex")
+            rows.append(dict(subset=sub, method=m,
+                             mcc_macro=round(float(r.mcc_macro), 3),
+                             mcc_lo=round(float(r.mcc_lo), 3), mcc_hi=round(float(r.mcc_hi), 3),
+                             far_macro=round(float(r.far_macro), 3),
+                             expected_cost_macro=round(float(r.expected_cost_macro), 3)))
+    pd.DataFrame(rows).to_csv(SUP / "S5b_cmapss_main_three_methods.csv", index=False)
+    print("  S5b_cmapss_main_three_methods.csv")
 
 
 def table3_battery():
@@ -97,9 +95,11 @@ def table3_battery():
            "(cell-disjoint splits; leak-free feature set). MCC, false-alarm rate, recall, "
            "expected cost at the 10:1 ratio, and mean accepted policy updates. With four cells "
            "the summaries are descriptive; per-cell outcomes are in Supplementary Table S4.")
-    (TBL / "table3.tex").write_text(latex_table(
+    # Battery is main-text Table 2 (C-MAPSS detail moved to Supplementary Table S5 to keep the
+    # 8-item Scientific Reports display budget: 6 figures + 2 tables).
+    (TBL / "table2.tex").write_text(latex_table(
         cap, ["Policy", "MCC", "FAR", "Recall", "Cost", "Updates"], rows, label="tab:battery"))
-    print("  table3.tex")
+    print("  table2.tex (battery)")
 
 
 def supplement():
@@ -147,13 +147,19 @@ def supplement():
     # S11: NASA Randomized Battery Usage replication
     pd.read_csv(RES / "rw_summary.csv").to_csv(SUP / "S11_rw_battery_summary.csv", index=False)
     pd.read_csv(RES / "rw_fold_results.csv").to_csv(SUP / "S11raw_rw_fold_results.csv", index=False)
-    print("  supplement S1-S5 CSVs")
+    # S12: failure-mode diagnosis (confusion + per-run action counts + delays)
+    pd.read_csv(RES / "diagnosis_confusion.csv").to_csv(SUP / "S12_diagnosis_confusion.csv", index=False)
+    pd.read_csv(RES / "diagnosis_action_counts.csv").to_csv(SUP / "S12b_diagnosis_action_counts.csv", index=False)
+    pd.read_csv(RES / "diagnosis_summary.csv").to_csv(SUP / "S12c_diagnosis_summary.csv", index=False)
+    # S9b: unified dimensionless controller configuration
+    pd.read_csv(RES / "unified_config.csv").to_csv(SUP / "S9b_unified_config.csv", index=False)
+    print("  supplement CSVs")
 
 
 if __name__ == "__main__":
     print("Generating Paper-2 tables ->", TBL)
     table1_channel()
-    table2_cmapss()
-    table3_battery()
+    table3_battery()       # writes table2.tex (battery = main Table 2)
+    cmapss_supplement_table()
     supplement()
     print("done")

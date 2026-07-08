@@ -36,7 +36,7 @@ PREAMBLE = r"""
 \providecommand{\tightlist}{\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 """
 
-SECTIONS = ["introduction", "results", "discussion", "methods"]
+SECTIONS = ["introduction", "results", "discussion", "conclusion", "methods"]
 
 
 def fig_block(n: int) -> str:

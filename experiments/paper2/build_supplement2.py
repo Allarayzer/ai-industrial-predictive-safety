@@ -146,6 +146,46 @@ parts.append("\n\n## Supplementary Table S11. Twelve-cell replication — NASA R
              "entire 21-cycle test series. Per-fold results in S11raw_rw_fold_results.csv.\n\n"
              + md_table(s11))
 
+s12 = pd.read_csv(SUP / "S12_diagnosis_confusion.csv")
+s12b = pd.read_csv(SUP / "S12b_diagnosis_action_counts.csv")
+s12c = pd.read_csv(SUP / "S12c_diagnosis_summary.csv")
+parts.append("\n\n## Supplementary Table S12. Failure-mode diagnosis — confusion, action counts, delays\n\n"
+             "The governed controller is run on four controlled regimes with a known ground-truth "
+             "failure mode (10 seeds each), logging its structural decision at every review. "
+             "**(a) Per-stream confusion** (counts out of 10): the channel-reliability regime is "
+             "diagnosed as a reweight in 10/10 and the model-drift regime as an escalation in "
+             "10/10; the ranking-preserved regimes are handled without a structural action in "
+             "15/20, the errors being harmless single reweights and never a false escalation.\n\n"
+             + md_table(s12) +
+             "\n\n**(b) Mean actions per run by regime.** Weight actions rise from 0.3 under intact "
+             "ranking to 1.5 once a channel fails; escalations rise from <=0.2 to 22.1 only when "
+             "all channels lose ranking.\n\n" + md_table(s12b) +
+             "\n\n**(c) Per-regime summary** (diagnostic-action rates and median detection delay "
+             "in events from onset to the first correct structural action).\n\n" + md_table(s12c))
+
+s9b = pd.read_csv(SUP / "S9b_unified_config.csv")
+parts.append("\n\n## Supplementary Table S9b. Unified dimensionless controller configuration\n\n"
+             "The governed controller re-run with a single shared set of dimensionless acceptance "
+             "thresholds (validation share 0.70, escalation AUC floor 0.57, cost-improvement "
+             "margin 0.97) across both experiments; scale-dependent constants (review cadence, "
+             "buffer size) remain matched to each stream. Under channel-reliability shift the "
+             "unified controller keeps its post-shift MCC and cost advantage over the best "
+             "threshold-only policy (ACI: post-shift MCC 0.589, cost 0.458); on batteries it "
+             "keeps its expected-cost advantage over static calibration (0.174). Conclusions do "
+             "not depend on per-experiment constant choices.\n\n" + md_table(s9b))
+
+s13 = pd.DataFrame([
+    {"Aspect": "Primary question", "Companion paper (under review)": "Offline construction of the hybrid risk-fusion framework", "This paper": "Online maintenance of the fused decision layer"},
+    {"Aspect": "Core contribution", "Companion paper (under review)": "Component fusion with split-conformal alarm calibration and drift detection", "This paper": "Failure-mode diagnosis and governed threshold/reweight/escalation actions"},
+    {"Aspect": "Evaluation", "Companion paper (under review)": "Offline component and fusion benchmarks", "This paper": "Controlled shift stress tests, asynchronous replay, and online adaptation"},
+    {"Aspect": "Adaptation", "Companion paper (under review)": "Static calibration; no online weight governance", "This paper": "Threshold recalibration, bounded weight update, and escalation controller"},
+    {"Aspect": "Shared assets", "Companion paper (under review)": "Datasets and ai_cta code infrastructure", "This paper": "Same datasets/infrastructure reused; no numerical result reused as validation"},
+])
+parts.append("\n\n## Supplementary Table S13. Relationship to the companion manuscript\n\n"
+             "The companion manuscript (under review at PeerJ Computer Science) and the present "
+             "study address different questions and share only datasets and code infrastructure; "
+             "no result of one is treated as validation of the other.\n\n" + md_table(s13))
+
 s10 = pd.read_csv(SUP / "S10_randomized_shift_summary.csv")
 parts.append("\n\n## Supplementary Table S10. Randomized-shift robustness of the location-shift ranking\n\n"
              "Thirty shift configurations drawn at random from ranges not used when the policies "
