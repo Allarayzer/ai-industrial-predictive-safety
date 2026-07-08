@@ -1,9 +1,9 @@
 """Regime-aware conformal calibration and guarded drift-triggered updates."""
 from __future__ import annotations
 
-from collections import defaultdict, deque
+from collections import deque
+from collections.abc import Hashable
 from dataclasses import dataclass
-from typing import Hashable
 
 import numpy as np
 
@@ -48,7 +48,7 @@ class RegimeConformalCalibrator:
         self,
         scores: np.ndarray,
         regimes: np.ndarray,
-    ) -> "RegimeConformalCalibrator":
+    ) -> RegimeConformalCalibrator:
         values = np.asarray(scores, dtype=float)
         groups = np.asarray(regimes, dtype=object)
         if values.ndim != 1 or groups.ndim != 1 or len(values) != len(groups):

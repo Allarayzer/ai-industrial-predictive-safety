@@ -73,6 +73,11 @@ __all__ = [
     # Streaming
     "SafetyPipeline",
     "PipelineEvent",
+    # Online adaptation (P4)
+    "AsynchronousRiskFusion",
+    "RegimeConformalCalibrator",
+    "GuardedRecalibrationController",
+    "AdaptiveSafetyPipeline",
 ]
 
 # P4 online-adaptation components
