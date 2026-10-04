@@ -486,6 +486,7 @@ class NeuralRiskEstimator(BaseEstimator):
         cost_fp = float(self.cost_fp)
         eps = 1e-7
         def loss(y_true, y_pred):
+            y_true = tf.reshape(tf.cast(y_true, y_pred.dtype), tf.shape(y_pred))
             y_pred = tf.clip_by_value(y_pred, eps, 1.0 - eps)
             pos = cost_fn * y_true * tf.math.log(y_pred)
             neg = cost_fp * (1.0 - y_true) * tf.math.log(1.0 - y_pred)

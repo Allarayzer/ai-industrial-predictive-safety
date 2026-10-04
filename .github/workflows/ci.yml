@@ -25,13 +25,32 @@ jobs:
           pip install -e ".[test]"
       - name: Run tests with coverage
         run: |
-          pytest tests/ --cov=src/ai_cta --cov-report=xml --cov-report=term
+          python -m pytest tests/ --cov=ai_cta --cov=api --cov-report=xml --cov-report=term
+      - name: Verify archived experiment snapshot
+        run: python experiments/peerj/verify_manifest.py
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
           fail_ci_if_error: false
+  deep:
+    name: TensorFlow numerical and model checks
+    runs-on: ubuntu-latest
+    env:
+      TF_NUM_INTRAOP_THREADS: "2"
+      TF_NUM_INTEROP_THREADS: "2"
+      OMP_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install test and deep-learning dependencies
+        run: pip install -e ".[test,deep]"
+      - name: Check sample pairing and one-batch training
+        run: python -m pytest tests/test_deep_losses.py
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -44,4 +63,4 @@ jobs:
       - name: Install ruff
         run: pip install ruff
       - name: Run ruff
-        run: ruff check src/ tests/ --output-format=github
+        run: ruff check src/ tests/ api/ examples/quick_start.py experiments/peerj/verify_manifest.py --output-format=github

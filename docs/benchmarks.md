@@ -4,6 +4,15 @@ This page describes the public-dataset benchmarks shipped with the
 repository, the ablation and baseline-comparison studies, and the
 expected reproduction protocol.
 
+## Select the correct protocol first
+
+Use [experiments/peerj](../experiments/peerj/README.md) for corrected PeerJ
+procedures and [experiments/paper2](../experiments/paper2/README.md) for governed
+adaptation. The old CWRU, E2 C-MAPSS, and ablation runners below reuse fitting or
+calibration observations during evaluation. They are historical demonstrations,
+not the corrected article protocol. See [version/provenance notes](reproduction.md).
+Dataset descriptions and historical commands below must be interpreted in that context.
+
 ## Datasets
 
 ### NASA C-MAPSS Turbofan Engine Degradation

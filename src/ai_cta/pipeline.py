@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 import pandas as pd
 
-from ai_cta.risk_model import RiskScorer
+from ai_cta.risk_model import ConformalThresholdCalibrator, RiskScorer
 
 __all__ = ["SafetyPipeline", "PipelineEvent"]
 
@@ -51,6 +51,12 @@ class SafetyPipeline:
     alert_callback : callable, optional
         Invoked with a PipelineEvent whenever `alert_threshold` is exceeded.
         Default is a no-op that simply logs at WARNING level.
+    risk_calibrator : ConformalThresholdCalibrator, optional
+        A fitted calibrator of the final detector-plus-rules risk score on
+        held-out known-normal windows. When supplied, its strict threshold
+        decision replaces `alert_threshold` for callbacks. Risk-level labels
+        still follow the scorer's fixed bands. Calibration of anomaly scores
+        alone is not valid for a composite risk score.
     Examples
     --------
     >>> pipeline = SafetyPipeline(
@@ -68,12 +74,16 @@ class SafetyPipeline:
         window_size: int = 32,
         alert_threshold: float = 0.6,
         alert_callback: Callable[[PipelineEvent], None] | None = None,
+        risk_calibrator: ConformalThresholdCalibrator | None = None,
     ):
+        if risk_calibrator is not None and not hasattr(risk_calibrator, "threshold_"):
+            raise ValueError("Fit risk_calibrator on held-out composite risk scores first.")
         self.detector = detector
         self.risk_scorer = risk_scorer
         self.window_size = window_size
         self.alert_threshold = alert_threshold
         self.alert_callback = alert_callback or self._default_alert
+        self.risk_calibrator = risk_calibrator
     @staticmethod
     def _default_alert(event: PipelineEvent) -> None:
         logger.warning(
@@ -116,7 +126,12 @@ class SafetyPipeline:
                 risk_level=level,
                 channel_values=channel_values,
             )
-            if risk_score >= self.alert_threshold:
+            alarm = (
+                bool(self.risk_calibrator.apply([risk_score])[0])
+                if self.risk_calibrator is not None
+                else risk_score >= self.alert_threshold
+            )
+            if alarm:
                 self.alert_callback(event)
             yield event
     # ----------------------------------------------- webhook integration

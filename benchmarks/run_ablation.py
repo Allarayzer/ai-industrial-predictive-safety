@@ -1,4 +1,8 @@
-"""Ablation study of the 3-component hybrid risk model.
+"""LEGACY EXPLORATORY PROTOCOL — not the corrected PeerJ evaluation.
+See experiments/peerj/README.md for disjoint calibration/test procedures.
+This historical script reuses fitting/calibration data during evaluation.
+
+Ablation study of the 3-component hybrid risk model.
 
 Measures the contribution of each of the three risk signals in the
 hybrid function R_final (monograph § 8.4):
@@ -154,6 +158,11 @@ def _run_config(
 
 
 def main() -> None:
+    import warnings
+    warnings.warn(
+        "Legacy overlapping evaluation: use experiments/peerj for corrected study protocols.",
+        UserWarning, stacklevel=2,
+    )
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--n-seeds", type=int, default=5)
     parser.add_argument("--n-samples", type=int, default=3000)

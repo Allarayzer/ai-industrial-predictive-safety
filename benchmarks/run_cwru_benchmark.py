@@ -1,4 +1,8 @@
-"""CWRU bearing-fault benchmark runner.
+"""LEGACY EXPLORATORY PROTOCOL — not the corrected PeerJ evaluation.
+See experiments/peerj/README.md for disjoint calibration/test procedures.
+This historical script reuses fitting/calibration data during evaluation.
+
+CWRU bearing-fault benchmark runner.
 Loads .mat files from benchmarks/data/cwru/{normal,fault}, segments each
 recording into fixed-length windows, extracts engineered features, and
 trains a detector fit only on the normal-baseline windows. The detector
@@ -113,6 +117,11 @@ def run_one_method(
     }
 
 def main() -> int:
+    import warnings
+    warnings.warn(
+        "Legacy overlapping evaluation: use experiments/peerj for corrected study protocols.",
+        UserWarning, stacklevel=2,
+    )
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--window", type=int, default=1024, help="Samples per window.")
     parser.add_argument("--stride", type=int, default=512, help="Window stride.")

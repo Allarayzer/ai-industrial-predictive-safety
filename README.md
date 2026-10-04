@@ -2,64 +2,25 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![CI](https://github.com/Allarayzer/ai-industrial-predictive-safety/actions/workflows/ci.yml/badge.svg)](https://github.com/Allarayzer/ai-industrial-predictive-safety/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-1.1.0-brightgreen.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-1.2.2.dev0-brightgreen.svg)](CHANGELOG.md)
 [![ORCID](https://img.shields.io/badge/ORCID-0009--0009--1548--390X-A6CE39?logo=orcid&logoColor=white)](https://orcid.org/0009-0009-1548-390X)
-[![Software DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21145078.svg)](https://doi.org/10.5281/zenodo.21145078)
+[![Archived v1.1.0 DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.21145078.svg)](https://doi.org/10.5281/zenodo.21145078)
 [![Monograph](https://img.shields.io/badge/Monograph%20DOI-10.5281%2Fzenodo.20535197-blue.svg)](https://doi.org/10.5281/zenodo.20535197)
-> Reference implementation of a predictive safety framework for high-hazard
-> industrial facilities. Integrates Isolation Forest, LSTM, RUL quantile
-> regression, neural risk modelling, conformal calibration, and three-component
-> risk fusion behind a streaming pipeline and a REST API.
-## Overview
-Industrial accidents at high-hazard facilities — nuclear power plants,
-chemical processing sites, railway and pipeline infrastructure — often
-occur not because anomalies were invisible, but because existing
-monitoring systems reported them too late or buried them in false alarms.
-This project implements a layered, AI-based detection and alerting stack
-that targets the narrow window between the first deviation from nominal
-behaviour and the onset of failure.
-The code accompanies the monograph:
-> Serebriakov, I. (2026). *Artificial Intelligence for Preventing Accidents
-> at High-Risk Industrial Facilities* (1.1.0, 1st ed.). Zenodo.
-> https://doi.org/10.5281/zenodo.20535197
+AI-CTA is an open research implementation for industrial anomaly detection,
+remaining-useful-life estimation, risk-score fusion, and threshold calibration.
+It accompanies the monograph and two empirical studies. The current development
+version is **1.2.2.dev0**; see [release and reproduction notes](docs/reproduction.md).
 
-## Abstract
-This monograph presents a comprehensive study of artificial intelligence
-(AI) methods applied to accident prevention at high-hazard industrial
-facilities — nuclear power plants, chemical plants, transportation hubs,
-and critical energy infrastructure. The work integrates a theoretical
-analysis of industrial accident causation, a critical review of existing
-safety engineering methods, an original multi-layer AI architecture, and
-an open-source reference implementation.
+There are two distinct streaming interfaces. `SafetyPipeline` consumes sensor
+readings and computes detector-plus-rules risk; the demo REST service uses this
+interface. `AdaptiveSafetyPipeline` consumes **precomputed** channel scores and
+handles asynchronous fusion, drift monitoring, and guarded threshold updates.
+The REST service does not run the three-channel adaptive pipeline.
 
-The principal scientific contributions of this monograph are: (1) the
-design of a unified AI-Industrial-Safety architecture that integrates
-three AI layers — machine learning, computer vision, and digital twins —
-with industrial SCADA infrastructure through low-code workflow
-orchestration; (2) the formalization of a hybrid risk function combining
-an anomaly-based score, a remaining-useful-life (RUL) forecast, and a
-neural-network integrated risk estimate, with an SLSQP weight-calibration
-procedure that adaptively identifies the dominant risk component per task;
-(3) the publication of an open reference project that provides a
-reproducible implementation of the proposed algorithms; (4) a comparative
-analysis of the proposed approach against five leading industrial
-predictive analytics platforms; and (5) an implementation methodology
-that enables AI integration without disruptive reengineering of existing
-production infrastructure.
-
-The software implementation is validated on three benchmark industrial
-datasets — NASA C-MAPSS (turbofan engines), CWRU (bearing faults), and
-Bosch CNC (machining anomalies) — and incorporates conformal threshold
-calibration for controlled false-positive rates and PSI/KS-based
-concept-drift detection for production-grade monitoring.
-
-The work is relevant for industrial safety engineers, automation and
-control specialists, digital twin developers, reliability engineering
-researchers, and industrial AI practitioners. The proposed solutions are
-aligned with current international standards for functional safety
-(IEC 61508/61511), risk management (ISO 31000), and ethical application
-of AI in safety-critical systems (IEEE 7000-2021, NIST AI Risk Management
-Framework).
+The monograph also discusses computer vision, digital twins, and SCADA integration.
+These broader architectural proposals are not implementations provided by this
+Python library. This is research software, without field-validation or safety
+certification claims.
 
 ## Features
 - **Multi-family feature extractors** for multivariate sensor streams:
@@ -72,15 +33,14 @@ Framework).
   regressor with a pinball loss; recovers a horizon-conditioned failure
   risk via `risk_at_horizon()`.
 - **Neural risk estimator** (`NeuralRiskEstimator`) — feedforward
-  classifier with cost-asymmetric BCE that turns recent telemetry,
-  operational context, and asset history into a probability of failure
-  within a target horizon.
+  classifier with cost-asymmetric BCE. Its output is a risk score;
+  a calibrated failure probability requires separate validation.
 - **Three-component risk aggregation** (`RiskAggregator`) — convex
   combination R_final = w₁·R_anom + w₂·R_RUL + w₃·R_NN with weights
   calibrated via SLSQP on a labelled validation set.
-- **Conformal Risk Control** (`ConformalThresholdCalibrator`) — split
-  conformal prediction with finite-sample correction for guaranteed
-  marginal false-alarm rate.
+- **Conformal threshold calibration** (`ConformalThresholdCalibrator`) — split
+  conformal thresholding with a marginal false-alarm bound under exchangeability
+  of held-out normal calibration and test scores; not a guarantee under drift.
 - **Online recalibration** (`OnlineCalibrator`) — sliding-window
   threshold updates on a configurable schedule.
 - **Distribution drift detection** (`DriftDetector`) — Population
@@ -90,33 +50,36 @@ Framework).
 - **Industrial telemetry simulator** (`IndustrialSimulator`) — full
   multi-sensor generator with seasonal components, multi-mode
   degradation, and Poisson-process anomaly events.
-- **Streaming pipeline** (`SafetyPipeline`) — orchestrates the full loop
-  from raw readings to n8n-compatible webhook alerts.
+- **Sensor streaming** (`SafetyPipeline`) — detector-plus-rules scoring and
+  callbacks, with an optional calibrator fitted on held-out composite scores.
+- **Adaptive streaming** (`AdaptiveSafetyPipeline`) — timestamped precomputed
+  scores, stale-channel handling, drift checks, and guarded recalibration.
+- **Regime thresholds** (`RegimeConformalCalibrator`) — per-regime calibration
+  with a pooled fallback for unseen or undersampled regimes.
 - **REST API service** — FastAPI endpoints for online scoring.
 - **Benchmark scripts** for NASA C-MAPSS and CWRU bearing datasets.
 - **Docker reference deployment** with API, n8n, Postgres, and Redis.
 ## Architecture
 ```mermaid
-flowchart LR
-    A[Sensor Stream] --> B[Feature Extraction<br/>statistical / rolling / FFT]
-    B --> C1[IsolationForest<br/>Detector]
-    B --> C2[LSTM<br/>Detector]
-    C1 --> D[Hybrid<br/>Score Fusion]
-    C2 --> D
-    A --> E[RUL Estimator<br/>quantile regression]
-    A --> F[Neural Risk<br/>Estimator]
-    D --> G[Risk Aggregator<br/>3-component fusion]
-    E --> G
-    F --> G
-    G --> H[Conformal<br/>Threshold]
-    G --> I[Risk Scorer<br/>+ rule-based]
-    H --> J[SafetyPipeline]
-    I --> J
-    J --> K[Webhook Alert<br/>n8n / Kafka / MQTT]
-    A -.-> L[Drift Detector<br/>PSI / KS]
-    L -.-> M[OnlineCalibrator<br/>periodic refit]
-    M -.-> H
+flowchart TB
+    subgraph sensor[Sensor pipeline and demo REST]
+        A[Sensor window] --> B[Anomaly detector]
+        B --> C[RiskScorer: detector plus rules]
+        C --> D[Fixed alert threshold by default]
+        C --> E[Optional held-out composite-score threshold]
+        D --> F[Callback / response]
+        E --> F
+    end
+    subgraph adaptive[AdaptiveSafetyPipeline: separate library interface]
+        G[Precomputed timestamped channel scores] --> H[AsynchronousRiskFusion]
+        H --> I[Threshold decision and audit event]
+        J[Reference/current features] --> K[DriftDetector]
+        K --> L[GuardedRecalibrationController]
+        H -->|only if externally confirmed normal| L
+        L -->|accepted update| I
+    end
 ```
+
 See [`docs/architecture.md`](docs/architecture.md) for component-level
 description and design rationale.
 ## Installation
@@ -134,50 +97,33 @@ pip install -e ".[api]"
 pip install -e ".[all]"
 ```
 ## Quick Start
-Train an Isolation Forest detector on a synthetic sensor stream, calibrate
-its threshold with conformal prediction, and run the end-to-end pipeline:
+
+From a repository checkout:
+
+```bash
+pip install -e .
+python examples/quick_start.py
+```
+
+The example fits the detector on one stream, fits a threshold on the **composite
+risk scores** of a separate known-normal stream, and applies that threshold to
+callbacks on a third stream. It passes the fitted object explicitly:
+
 ```python
-from ai_cta import (
-    IsolationForestDetector,
-    RiskScorer,
-    SafetyPipeline,
-    ConformalThresholdCalibrator,
-)
-from ai_cta.risk_model import ChannelLimits
-from ai_cta.data import generate_synthetic_stream, inject_anomalies
-# 1. Prepare training and evaluation data
-train = generate_synthetic_stream(n_samples=2000, random_state=0)
-test, labels = inject_anomalies(
-    generate_synthetic_stream(n_samples=1000, random_state=1),
-    n_anomalies=20,
-    random_state=1,
-)
-# 2. Fit the detector on known-normal data
-detector = IsolationForestDetector(window_size=64, stride=32).fit(
-    train.drop(columns=["timestamp"])
-)
-# 3. Calibrate the anomaly threshold (5% FAR target)
-calibrator = ConformalThresholdCalibrator(alpha=0.05)
-calibrator.calibrate(detector.decision_function(train.drop(columns=["timestamp"])))
-# 4. Combine with rule-based channel limits
-scorer = RiskScorer(
-    ml_weight=0.6,
-    limits={
-        "temperature": ChannelLimits(40, 80, 20, 100),
-        "vibration": ChannelLimits(0.1, 0.5, 0.0, 0.8),
-    },
-)
-# 5. Run the streaming pipeline
 pipeline = SafetyPipeline(
     detector=detector,
     risk_scorer=scorer,
     window_size=64,
-    alert_threshold=0.7,
+    risk_calibrator=calibrator,  # fitted on held-out detector-plus-rules scores
+    alert_callback=alerts.append,
 )
-for event in pipeline.run(test.to_dict(orient="records")):
-    print(f"{event.timestamp}  risk={event.risk_score:.3f}  level={event.risk_level}")
 ```
-Full end-to-end walk-through: [`examples/quick_start.py`](examples/quick_start.py).
+
+When `risk_calibrator` is omitted, callbacks use the fixed `alert_threshold`.
+Risk-level labels always use the scorer's fixed bands. This time-series demo
+illustrates API wiring: temporal dependence or distribution shift can invalidate
+an exchangeability-based false-alarm bound.
+
 ## REST API
 A reference REST service wraps the pipeline (see monograph § 10.8):
 ```bash
@@ -203,33 +149,21 @@ docker compose -f docker/docker-compose.yml up --build
 docker compose -f docker/docker-compose.yml up api postgres redis n8n
 ```
 See [`docker/README.md`](docker/README.md) for the deployment guide.
-## Benchmarks
+## Experiments and benchmarks
 
-Reproducible evaluation scripts are provided for two widely-used public
-datasets in the predictive-maintenance literature, plus ablation and
-baseline-comparison scripts for journal reviewers.
+Start with the protocol corresponding to the work you want to reproduce:
 
-| Script | Purpose |
-|--------|---------|
-| [`benchmarks/run_cmapss_benchmark.py`](benchmarks/run_cmapss_benchmark.py) | NASA C-MAPSS (FD001–FD004) — turbofan RUL / degradation flag |
-| [`benchmarks/run_cwru_benchmark.py`](benchmarks/run_cwru_benchmark.py)   | CWRU Bearing — fault classification |
-| [`benchmarks/run_bosch_benchmark.py`](benchmarks/run_bosch_benchmark.py) | Bosch CNC Machining — cross-domain vibration anomaly detection (3 real brownfield machines) |
-| [`benchmarks/run_ablation.py`](benchmarks/run_ablation.py)               | Ablation of 3-component hybrid risk (monograph § 8.4) |
-| [`benchmarks/run_baselines.py`](benchmarks/run_baselines.py)             | IsolationForest vs LOF vs OC-SVM vs z-score |
+| Purpose | Entry point |
+|---|---|
+| PeerJ study: disjoint C-MAPSS fusion, cross-load CWRU, calibration, RUL and sensitivity analyses | [experiments/peerj/README.md](experiments/peerj/README.md) |
+| Governed-adaptation study: controlled shifts, engine crossfit, battery replay | [experiments/paper2/README.md](experiments/paper2/README.md) |
+| Dataset download instructions and historical demonstrations | [docs/benchmarks.md](docs/benchmarks.md) |
 
-Download the data first (see [`docs/benchmarks.md`](docs/benchmarks.md))
-then run, e.g.:
-
-```bash
-python benchmarks/run_cmapss_benchmark.py
-python benchmarks/run_cwru_benchmark.py
-python benchmarks/run_bosch_benchmark.py
-python benchmarks/run_ablation.py  --n-seeds 10
-python benchmarks/run_baselines.py --n-seeds 10
-```
-
-Every benchmark writes both a raw `.csv` (per-seed metrics) and a
-`.tex` LaTeX-ready summary table to `benchmarks/results/`.
+`benchmarks/run_cwru_benchmark.py`, `run_experiment_e2_cmapss.py`, and
+`run_ablation.py` are historical exploratory scripts. They reuse training or
+weight-calibration observations during evaluation and **must not be used as
+held-out validation of the PeerJ results**. Corrected runners are under
+`experiments/peerj/`. Historical outputs have not been replaced by new runs.
 
 ## Dataset Information
 
@@ -245,30 +179,20 @@ downloaded from their original public sources by the bundled scripts.
 
 ## Reproducibility
 
-This repository is designed to be reproducible end-to-end for
-peer review:
+[Reproduction notes](docs/reproduction.md) distinguish archived study code,
+reference results, and the current development version. The PeerJ snapshot
+includes a SHA-256 manifest for imported scripts and unchanged reference CSVs.
+The governed-adaptation package has its own provenance map.
 
-- **Python**: 3.11 (CI matrix covers 3.10 / 3.11 / 3.12)
-- **Random seeds**: every training/evaluation script takes a `--seed`
-  (or `--n-seeds`) argument; all results in the companion journal article are produced with
-  seeds 0–9 (the C-MAPSS RUL multi-seed comparison uses seeds 0–7).
-- **Environment pinning**: `pyproject.toml` declares all runtime
-  dependencies with lower bounds; `pip install -e ".[all]"` installs
-  the complete stack.
-- **Container parity**: `docker compose -f docker/docker-compose.yml
-  up api` exposes exactly the same REST surface used in the monograph
-  case studies.
-- **Data**: benchmark datasets live in `benchmarks/data/` (gitignored)
-  and are downloaded on first use with the bundled scripts. See
-  [`docs/benchmarks.md`](docs/benchmarks.md) for exact URLs and
-  version-pinned archive hashes.
-- **Results archive**: each release publishes a Zenodo record that
-  archives the source tarball alongside `benchmarks/results/*.csv`
-  and `*.tex` artefacts, so reviewers can compare their re-runs
-  against the exact numbers reported.
+Dependencies in `pyproject.toml` are compatibility lower bounds, **not an
+environment lock**. Record Python/library versions, the Git commit, dataset
+versions, and seeds for each run. Dataset downloads are explicit; availability
+and bitwise identity of upstream mirrors are not guaranteed. Generated results
+are kept separate from reference CSVs.
+
 ## Repository Structure
 
-Flat layout matching Chapter 10.2 of the monograph:
+Core library, services, and study-specific experiment packages:
 
 ```
 ai-industrial-predictive-safety/
@@ -279,18 +203,23 @@ ai-industrial-predictive-safety/
 │   ├── risk_model.py         # RiskScorer, RiskAggregator, ConformalCalibrator, NeuralRisk
 │   ├── drift_detector.py     # PSI + KS population drift
 │   ├── calibration.py        # OnlineCalibrator (scheduled recalibration)
+│   ├── online_fusion.py      # timestamped asynchronous channel scores
+│   ├── adaptive_calibration.py # guarded and per-regime thresholds
+│   ├── adaptive_pipeline.py  # drift / threshold / audit events
 │   ├── simulator.py          # IndustrialSimulator telemetry generator
 │   ├── pipeline.py           # SafetyPipeline streaming orchestrator
 │   ├── data.py               # generate_synthetic_stream, inject_anomalies
 │   └── evaluation.py         # evaluate_binary_detector metrics
 ├── api/                    # FastAPI REST service (/predict, /score, /score-batch)
 ├── docker/                 # Dockerfile + 9-container docker-compose stack
-├── configs/                # YAML hyperparameter configs
-├── n8n_workflows/          # Exported n8n workflow JSON
-├── notebooks/              # Reproducibility Jupyter notebooks
-├── tests/                  # pytest suite (62 tests)
+├── configs/                # reference YAML settings (not auto-loaded)
+├── n8n_workflows/          # integration guidance
+├── notebooks/              # notebook guidance
+├── tests/                  # unit and integration tests
 ├── examples/               # Quick-start demo
-├── benchmarks/             # C-MAPSS, CWRU, ablation, baselines
+├── benchmarks/             # historical runners and dataset downloads
+├── experiments/peerj/      # corrected study runners and reference CSVs
+├── experiments/paper2/     # governed-adaptation replication package
 ├── docs/                   # Architecture, API, benchmark documentation
 ├── .github/workflows/      # CI configuration
 ├── CITATION.cff
@@ -307,13 +236,17 @@ ai-industrial-predictive-safety/
 ## Running the tests
 ```bash
 pip install -e ".[test]"
-pytest tests/
+python -m pytest tests/
 ```
-All 62 tests should pass on Python 3.10+.
+CI runs core/API tests on Python 3.10–3.12, and small TensorFlow loss/model
+checks in a separate Python 3.11 job. To include these checks locally, install
+`.[test,deep]`. Tests do not replace full benchmark or field validation.
 ## Citation
 
-If you use this code in your research, please cite both the software and
-the accompanying monograph:
+Cite the exact software version used. The example below refers specifically to
+**archived v1.1.0**, DOI `10.5281/zenodo.21145078`; that DOI does not identify the
+current development tree. For unreleased work, record the commit and repository
+URL. See `CITATION.cff` and [reproduction notes](docs/reproduction.md).
 
 ```bibtex
 @software{serebriakov_ai_cta_2026,

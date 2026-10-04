@@ -1,4 +1,8 @@
-"""Experiment E2 on REAL NASA C-MAPSS data (monograph § 13.6 alt).
+"""LEGACY EXPLORATORY PROTOCOL — not the corrected PeerJ evaluation.
+See experiments/peerj/README.md for disjoint calibration/test procedures.
+This historical script reuses fitting/calibration data during evaluation.
+
+Experiment E2 on REAL NASA C-MAPSS data (monograph § 13.6 alt).
 
 Instead of the synthetic Dataset S1 used in run_experiment_e2.py, this
 runner evaluates the three-component hybrid risk function on real
@@ -218,6 +222,11 @@ def evaluate_config(name: str, R_stack: np.ndarray, w: np.ndarray,
 
 
 def main() -> int:
+    import warnings
+    warnings.warn(
+        "Legacy overlapping evaluation: use experiments/peerj for corrected study protocols.",
+        UserWarning, stacklevel=2,
+    )
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--n-seeds", type=int, default=3)
     args = parser.parse_args()

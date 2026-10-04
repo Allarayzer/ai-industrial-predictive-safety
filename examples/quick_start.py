@@ -1,98 +1,56 @@
-"""End-to-end demonstration on synthetic sensor data.
-Run with:
-    python examples/quick_start.py
-Shows how to:
-    1. Generate synthetic sensor data.
-    2. Inject anomalies for evaluation.
-    3. Fit an Isolation Forest detector.
-    4. Calibrate a conformal threshold.
-    5. Combine it with rule-based channel limits.
-    6. Run the streaming pipeline with an alert callback.
+"""Demonstrate held-out calibration of the *composite* streaming risk.
+
+Run from the repository root: python examples/quick_start.py
+This synthetic time-series example illustrates wiring, not a distribution-shift
+or conditional-coverage guarantee. See experiments/peerj for study protocols.
 """
 from __future__ import annotations
+
 import numpy as np
-from ai_cta import (
-    ConformalThresholdCalibrator,
-    IsolationForestDetector,
-    RiskScorer,
-    SafetyPipeline,
-)
-from ai_cta.risk_model import ChannelLimits
-from ai_cta.pipeline import PipelineEvent
+
+from ai_cta import ConformalThresholdCalibrator, IsolationForestDetector, RiskScorer, SafetyPipeline
 from ai_cta.data import generate_synthetic_stream, inject_anomalies
-from ai_cta.evaluation import evaluate_binary_detector
+from ai_cta.pipeline import PipelineEvent
+from ai_cta.risk_model import ChannelLimits
+
 
 def main() -> None:
-    # ---------- 1-2. Data ------------------------------------------------
-    print("Generating synthetic training and test streams ...")
-    train = generate_synthetic_stream(n_samples=2000, random_state=0)
-    test, labels = inject_anomalies(
-        generate_synthetic_stream(n_samples=1000, random_state=1),
-        n_anomalies=15,
-        random_state=1,
+    window = 64
+    # Three separate streams: neither calibration nor test data fit the detector.
+    train = generate_synthetic_stream(n_samples=2048, random_state=0)
+    calibration = generate_synthetic_stream(n_samples=2048, random_state=1)
+    test, _ = inject_anomalies(
+        generate_synthetic_stream(n_samples=256, random_state=2),
+        n_anomalies=5, random_state=2,
     )
-    print(f"  Train: {len(train)} samples")
-    print(f"  Test : {len(test)} samples ({int(labels.sum())} anomalous)")
-    # ---------- 3. Detector ---------------------------------------------
-    print("\nFitting IsolationForestDetector ...")
     detector = IsolationForestDetector(
-        window_size=64,
-        stride=32,
-        use_spectral=False,
+        window_size=window, stride=window, use_spectral=False,
     ).fit(train.drop(columns=["timestamp"]))
-    print(f"  Engineered feature count: {len(detector.feature_names_)}")
-    print(f"  Training windows:         {detector.n_windows_fit_}")
-    # ---------- 4. Conformal calibration --------------------------------
-    print("\nCalibrating threshold at alpha=0.05 ...")
-    calib_scores = detector.decision_function(train.drop(columns=["timestamp"]))
-    calibrator = ConformalThresholdCalibrator(alpha=0.05).calibrate(calib_scores)
-    print(f"  Calibrated threshold: {calibrator.threshold_:.3f}")
-    # Evaluate the conformal-thresholded detector on the test stream.
-    test_scores = detector.decision_function(test.drop(columns=["timestamp"]))
-    test_preds = calibrator.apply(test_scores)
-    label_idx = np.linspace(0, len(labels) - 1, len(test_scores)).astype(int)
-    aligned_labels = labels[label_idx]
-    metrics = evaluate_binary_detector(aligned_labels, test_preds)
-    print(
-        f"  F1={metrics.f1:.3f}  "
-        f"precision={metrics.precision:.3f}  "
-        f"recall={metrics.recall:.3f}  "
-        f"FAR={metrics.false_alarm_rate:.3f}"
-    )
-    # ---------- 5. Composite risk scorer --------------------------------
-    scorer = RiskScorer(
-        ml_weight=0.6,
-        limits={
-            "temperature": ChannelLimits(warn_low=45, warn_high=55, alarm_low=30, alarm_high=70),
-            "vibration": ChannelLimits(warn_low=0.1, warn_high=0.5, alarm_low=0.0, alarm_high=0.8),
-            "pressure": ChannelLimits(warn_low=0.9, warn_high=1.1, alarm_low=0.7, alarm_high=1.3),
-        },
-    )
-    # ---------- 6. Streaming pipeline -----------------------------------
-    print("\nRunning SafetyPipeline on the test stream ...")
+    scorer = RiskScorer(ml_weight=0.6, limits={
+        "temperature": ChannelLimits(45, 55, 30, 70),
+        "vibration": ChannelLimits(0.1, 0.5, 0.0, 0.8),
+        "pressure": ChannelLimits(0.9, 1.1, 0.7, 1.3),
+    })
+    # Calibrate the SAME final score that the pipeline thresholds. Each score
+    # uses a disjoint 64-sample window and its final sensor reading for rules.
+    scores = detector.decision_function(calibration.drop(columns=["timestamp"]))
+    window_ends = calibration.iloc[window - 1::window]
+    risks = np.asarray([
+        scorer.score(float(score), row.drop(labels="timestamp").to_dict())
+        for score, (_, row) in zip(scores, window_ends.iterrows(), strict=True)
+    ])
+    calibrator = ConformalThresholdCalibrator(alpha=0.05).calibrate(risks)
     alerts: list[PipelineEvent] = []
     pipeline = SafetyPipeline(
-        detector=detector,
-        risk_scorer=scorer,
-        window_size=64,
-        alert_threshold=0.7,
+        detector, scorer, window_size=window, risk_calibrator=calibrator,
         alert_callback=alerts.append,
     )
-    event_count = 0
-    for _event in pipeline.run(test.to_dict(orient="records")):
-        event_count += 1
-    print(f"  Events emitted: {event_count}")
-    print(f"  Alerts raised:  {len(alerts)}")
-    if alerts:
-        first, last = alerts[0], alerts[-1]
-        print(
-            f"  First alert: t={first.timestamp} "
-            f"risk={first.risk_score:.2f} level={first.risk_level}"
-        )
-        print(
-            f"  Last alert:  t={last.timestamp} "
-            f"risk={last.risk_score:.2f} level={last.risk_level}"
-        )
+    events = list(pipeline.run(test.to_dict(orient="records")))
+    print(f"Calibration windows: {len(risks)}; composite risk threshold: {calibrator.threshold_:.4f}")
+    print(f"Streaming events: {len(events)}; calibrated alerts: {len(alerts)}")
+    print("Risk-level labels retain the fixed scorer bands; callbacks use the calibrated threshold.")
+    print("Marginal FAR control requires exchangeable normal calibration/test scores; temporal dependence or shift can invalidate it.")
+
 
 if __name__ == "__main__":
     main()

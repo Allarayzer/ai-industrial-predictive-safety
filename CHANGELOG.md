@@ -2,6 +2,31 @@
 All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
+## [Unreleased] — 1.2.2.dev0
+### Fixed
+- Single-reading REST requests now reach the detector's final window; omitted
+  timestamps receive a UTC value instead of the string `None`.
+- Quantile and asymmetric-BCE losses preserve sample pairing for both vector
+  and column-shaped targets; incompatible broadcasting is regression-tested.
+- Package version is read from `_version.py`; citation metadata distinguishes
+  development code from the archived v1.1.0 DOI.
+### Added
+- Optional held-out composite-risk calibration in `SafetyPipeline`, with a
+  three-stream example and strict conformal threshold decisions for callbacks.
+- HTTP, adaptive-pipeline, and TensorFlow numerical/integration regression tests.
+- A PeerJ protocol snapshot, unchanged reference results, and SHA-256 manifest.
+### Documentation
+- Separate sensor/REST and adaptive-fusion execution paths; label historical
+  overlapping evaluation protocols and remove unverified environment-lock claims.
+
+## [1.2.1] — 2026-07-08
+- Historical runtime version bump (commit `b361060`). Packaging/citation metadata
+  remained at 1.1.0; the unreleased maintenance changes above reconcile it.
+
+## [1.2.0]
+- Asynchronous fusion, per-regime calibration, guarded threshold updates, and
+  the adaptive pipeline; governed-adaptation experiments under `experiments/paper2`.
+
 ## [1.1.0] — 2026-04-22
 ### Added
 - **Prognostics module** (`ai_cta.prognostics`):

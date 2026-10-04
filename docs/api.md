@@ -92,7 +92,8 @@ Composite scoring. Default levels: `OK` (< 0.3), `Warning` (< 0.6),
 ### `ConformalThresholdCalibrator(alpha=0.05, random_state=42)`
 Split conformal prediction with finite-sample correction.
 - `calibrate(calibration_scores) -> self` — requires
-  `len(scores) >= ceil(1 / alpha)`.
+  `len(scores) >= int(1 / alpha)` (the implemented minimum).
+  Use held-out known-normal scores; marginal control assumes exchangeability.
 - `apply(scores) -> ndarray of 0/1`
 After calibration: `threshold_`, `calibration_size_`.
 ### `RiskAggregator(weights=(1/3, 1/3, 1/3), thresholds=(0.3, 0.6, 0.85), cost_fn=10.0, cost_fp=1.0)`
@@ -100,13 +101,17 @@ Three-component fusion (monograph § 8.4):
     R_final = w₁ R_anom + w₂ R_RUL + w₃ R_NN
 - `aggregate(R_anom, R_RUL, R_NN) -> (R_final, alert_levels)`
 - `calibrate_weights(R_anom_val, R_RUL_val, R_NN_val, y_val) -> ndarray`
-  — SLSQP optimization on the simplex.
+  — SLSQP minimizes cost-asymmetric BCE on a separate labeled calibration split.
 Levels: `OK` / `Warning` / `Critical` / `Emergency`.
 ## Streaming
-### `SafetyPipeline(detector, risk_scorer, window_size=32, alert_threshold=0.6, alert_callback=None)`
+### `SafetyPipeline(detector, risk_scorer, window_size=32, alert_threshold=0.6, alert_callback=None, risk_calibrator=None)`
 Consumes an iterable of dict readings and yields `PipelineEvent` per
 step. `PipelineEvent` has `timestamp`, `anomaly_score`, `risk_score`,
 `risk_level`, `channel_values`, and `to_dict()`.
+An optional fitted `risk_calibrator` must use held-out **composite** risk scores.
+It controls callbacks with a strict `score > threshold` decision, replacing the
+fixed callback threshold. Event risk levels retain their separate fixed bands.
+
 Static helper: `SafetyPipeline.make_webhook_callback(url, timeout=5.0)`
 builds a callback that POSTs events to an HTTP endpoint in
 n8n-compatible JSON.

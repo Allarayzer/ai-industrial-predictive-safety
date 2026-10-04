@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-message: "If you use this software in your research, please cite it as below."
+message: "Development version: cite the exact Git commit used. The archived v1.1.0 DOI is listed in references, not assigned to this tree."
 title: "AI-CTA: AI-Industrial Predictive Safety"
 abstract: >
   Reference implementation of a predictive safety framework for
@@ -16,9 +16,7 @@ authors:
     orcid: "https://orcid.org/0009-0009-1548-390X"
     affiliation: "Engineering Science, The City University of New York (CUNY), New York, NY, USA"
     email: allarayzer@gmail.com
-version: "1.1.0"
-date-released: "2026-04-22"
-doi: "10.5281/zenodo.21145078"
+version: "1.2.2.dev0"
 repository-code: "https://github.com/Allarayzer/ai-industrial-predictive-safety"
 url: "https://github.com/Allarayzer/ai-industrial-predictive-safety"
 license: MIT
@@ -35,6 +33,14 @@ keywords:
   - functional safety
   - high-hazard industrial facilities
 references:
+  - type: software
+    title: "AI-CTA: AI-Industrial Predictive Safety (archived v1.1.0)"
+    authors:
+      - family-names: Serebriakov
+        given-names: Ilia
+    version: "1.1.0"
+    doi: "10.5281/zenodo.21145078"
+    url: "https://doi.org/10.5281/zenodo.21145078"
   - type: book
     title: "Artificial Intelligence for Preventing Accidents at High-Risk Industrial Facilities"
     authors:

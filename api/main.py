@@ -14,18 +14,20 @@ Run locally::
 API documentation (Swagger UI) is auto-generated at ``/docs``.
 """
 from __future__ import annotations
+
 import logging
-from typing import Optional
-import numpy as np
+from contextlib import asynccontextmanager
+
 import pandas as pd
+
 from ai_cta import (
     IsolationForestDetector,
     RiskScorer,
     SafetyPipeline,
     __version__,
 )
-from ai_cta.risk_model import ChannelLimits
 from ai_cta.data import generate_synthetic_stream
+from ai_cta.risk_model import ChannelLimits
 
 try:
     from fastapi import FastAPI, HTTPException
@@ -41,7 +43,7 @@ logger = logging.getLogger(__name__)
 # --------------------------------------------------------- request/response
 class SensorReading(BaseModel):
     """Single sensor reading payload."""
-    timestamp: Optional[str] = Field(
+    timestamp: str | None = Field(
         None, description="ISO-8601 timestamp; auto-filled if omitted."
     )
     temperature: float
@@ -70,8 +72,8 @@ class VersionResponse(BaseModel):
 class _ServiceState:
     """Mutable holder for the loaded detector + pipeline."""
     detector = None
-    scorer: Optional[RiskScorer] = None
-    pipeline: Optional[SafetyPipeline] = None
+    scorer: RiskScorer | None = None
+    pipeline: SafetyPipeline | None = None
     window_size: int = 64
 
 state = _ServiceState()
@@ -101,6 +103,12 @@ def build_default_pipeline() -> None:
     logger.info("Default pipeline built and loaded.")
 
 # ----------------------------------------------------------------- app
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    build_default_pipeline()
+    yield
+
+
 app = FastAPI(
     title="AI-CTA Predictive Safety API",
     description=(
@@ -108,11 +116,8 @@ app = FastAPI(
         "See accompanying monograph, Chapter 10.8."
     ),
     version=__version__,
+    lifespan=lifespan,
 )
-
-@app.on_event("startup")
-def _startup() -> None:
-    build_default_pipeline()
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
@@ -141,7 +146,7 @@ def score_batch(req: BatchRequest) -> list[ScoreResponse]:
     rows = [r.model_dump() for r in req.readings]
     for row in rows:
         if row.get("timestamp") is None:
-            row["timestamp"] = pd.Timestamp.now().isoformat()
+            row["timestamp"] = pd.Timestamp.now(tz="UTC").isoformat()
     events = list(state.pipeline.run(rows))
     return [
         ScoreResponse(
@@ -169,9 +174,10 @@ def score_single(reading: SensorReading) -> ScoreResponse:
     if state.detector is None or state.scorer is None:
         raise HTTPException(status_code=503, detail="Pipeline not initialized.")
     # Build a window using a recent synthetic baseline as prefix.
-    prefix = generate_synthetic_stream(n_samples=state.window_size, random_state=0)
+    prefix = generate_synthetic_stream(n_samples=state.window_size - 1, random_state=0)
     payload = reading.model_dump()
-    payload.setdefault("timestamp", str(pd.Timestamp.now()))
+    if payload["timestamp"] is None:
+        payload["timestamp"] = pd.Timestamp.now(tz="UTC").isoformat()
     df = pd.concat(
         [
             prefix.drop(columns=["timestamp"]),

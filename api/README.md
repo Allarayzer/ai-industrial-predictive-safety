@@ -1,11 +1,21 @@
 # REST API
 FastAPI service exposing the AI-CTA pipeline as REST endpoints,
 following the design described in **Chapter 10.8** of the monograph.
+## Scope
+
+The default service is a synthetic-trained detector-plus-rules demonstration.
+It does not run three-channel fusion, guarded adaptation, or conformal calibration.
+`/predict` (alias `/score`) scores one request with 63 synthetic prefix readings;
+the request itself is the final sample. It keeps no equipment history between
+requests. For actual observations, submit complete windows to `/score-batch`;
+callers manage history across batches. Omitted single-reading timestamps use UTC.
+
 ## Endpoints
 | Method | Path           | Purpose                              |
 |--------|----------------|--------------------------------------|
 | GET    | `/health`      | Liveness probe                       |
 | GET    | `/version`     | Package version                      |
+| POST   | `/predict`     | Score a reading with synthetic prefix |
 | POST   | `/score`       | Score a single sensor reading        |
 | POST   | `/score-batch` | Score a batch (window) of readings   |
 Interactive Swagger UI is available at `/docs` when the service is

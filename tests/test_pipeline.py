@@ -1,10 +1,11 @@
 """Tests for the streaming SafetyPipeline."""
 import numpy as np
 import pandas as pd
+import pytest
 
 from ai_cta.data import generate_synthetic_stream
 from ai_cta.pipeline import SafetyPipeline
-from ai_cta.risk_model import RiskScorer
+from ai_cta.risk_model import ConformalThresholdCalibrator, RiskScorer
 
 
 class _DummyDetector:
@@ -52,3 +53,24 @@ def test_pipeline_skips_warmup():
     events = list(pipeline.run(df.to_dict(orient="records")))
     # Stream shorter than window: no events produced.
     assert events == []
+
+
+def test_calibrated_composite_risk_controls_callbacks_and_excludes_ties():
+    calibrator = ConformalThresholdCalibrator().calibrate(np.full(40, 0.5))
+    alerts = []
+    detector = _DummyDetector(0.5)
+    pipeline = SafetyPipeline(
+        detector, RiskScorer(ml_weight=1.0), window_size=2,
+        alert_threshold=0.0, risk_calibrator=calibrator, alert_callback=alerts.append,
+    )
+    readings = [{"timestamp": "2026-01-01", "sensor": 1.0}] * 3
+    list(pipeline.run(readings))
+    assert alerts == []
+    detector.score = 0.6
+    events = list(pipeline.run(readings))
+    assert alerts == events
+
+
+def test_unfitted_risk_calibrator_is_rejected():
+    with pytest.raises(ValueError, match="held-out composite risk"):
+        SafetyPipeline(_DummyDetector(), RiskScorer(), risk_calibrator=ConformalThresholdCalibrator())

@@ -207,8 +207,9 @@ class RULEstimator(BaseEstimator):
         import tensorflow as tf
         alphas = tf.constant(self.quantiles, dtype=tf.float32)
         def loss(y_true, y_pred):
-            # y_true: (batch,); y_pred: (batch, n_quantiles)
-            y_true = tf.expand_dims(y_true, axis=-1)
+            # Keras can supply (batch,) or (batch, 1) targets. Preserve
+            # sample pairing rather than broadcasting across the batch.
+            y_true = tf.reshape(tf.cast(y_true, y_pred.dtype), (-1, 1))
             err = y_true - y_pred
             return tf.reduce_mean(
                 tf.maximum(alphas * err, (alphas - 1.0) * err)

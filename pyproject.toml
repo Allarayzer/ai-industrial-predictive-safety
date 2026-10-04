@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 [project]
 name = "ai-cta"
-version = "1.1.0"
+dynamic = ["version"]
 description = "AI-based predictive safety framework for high-hazard industrial facilities."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -54,13 +54,16 @@ api = [
     "uvicorn[standard]>=0.27",
     "pydantic>=2.0",
 ]
-test = ["pytest>=7.4", "pytest-cov>=4.1"]
+test = ["pytest>=7.4", "pytest-cov>=4.1", "fastapi>=0.110", "pydantic>=2.0", "httpx>=0.27"]
 dev = [
     "pytest>=7.4",
     "pytest-cov>=4.1",
     "ruff>=0.1.0",
     "mypy>=1.5",
     "jupyter>=1.0",
+    "fastapi>=0.110",
+    "httpx>=0.27",
+    "pydantic>=2.0",
 ]
 benchmarks = [
     "tensorflow>=2.13",
@@ -86,6 +89,8 @@ Repository = "https://github.com/Allarayzer/ai-industrial-predictive-safety"
 Issues = "https://github.com/Allarayzer/ai-industrial-predictive-safety/issues"
 [tool.setuptools.packages.find]
 where = ["src"]
+[tool.setuptools.dynamic]
+version = {attr = "ai_cta._version.__version__"}
 [tool.setuptools.package-data]
 ai_cta = ["py.typed"]
 [tool.pytest.ini_options]
