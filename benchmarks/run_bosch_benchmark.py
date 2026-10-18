@@ -16,15 +16,15 @@ Dataset structure:
 This benchmark evaluates IsolationForest + engineered features
 (statistical + spectral) for tool-wear / process-anomaly detection.
 The train/test split is:
-    * train: 70% of NORMAL recordings only
-    * test : 30% of NORMAL + ALL anomalous recordings
+    * train: earlier calendar months of NORMAL recordings, near a 70% split
+    * test : later months of NORMAL + anomalous recordings in those months
 
 Metrics: F1, Precision, Recall, FAR at 95th-percentile train threshold.
 Per-machine breakdown + pooled result.
 
 Outputs:
-    benchmarks/results/bosch_results.csv
-    benchmarks/results/bosch_pooled.csv
+    experiments/maintained/results/bosch_results.csv
+    experiments/maintained/results/bosch_pooled.csv
 
 Usage:
     python benchmarks/run_bosch_benchmark.py
@@ -35,13 +35,15 @@ from __future__ import annotations
 import argparse
 import csv
 import pathlib
+import re
 import time
+from datetime import date
 
 import numpy as np
 from scipy import stats as scipy_stats
 
 DATA_DIR = pathlib.Path(__file__).parent / "data" / "bosch" / "data"
-RESULTS_DIR = pathlib.Path(__file__).parent / "results"
+RESULTS_DIR = pathlib.Path(__file__).resolve().parents[1] / "experiments" / "maintained" / "results"
 
 
 def load_h5(path: pathlib.Path) -> np.ndarray:
@@ -91,6 +93,38 @@ def collect_files(machine: str) -> tuple[list[pathlib.Path], list[pathlib.Path]]
     return normal, anomaly
 
 
+def recording_month(path: pathlib.Path) -> date:
+    """Read the documented English month/year tokens; never guess chronology."""
+    match = re.fullmatch(r"M\d+_([A-Za-z]{3})_(\d{4})_OP\d+_\d+", path.stem)
+    months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    if match is None or match[1] not in months:
+        raise ValueError(f"Unknown recording date/month: {path}")
+    return date(int(match[2]), months.index(match[1]) + 1, 1)
+
+
+def chronological_split(normal_files, anomaly_files, train_fraction=0.7):
+    """Reserve whole later months; older fault files are excluded from test.
+
+    The nominal fraction selects the first test month; ties stay together.
+    Recording order within a month is not asserted to be chronological.
+    """
+    if not 0 < train_fraction < 1:
+        raise ValueError("train_fraction must be between 0 and 1.")
+    dated_normal = sorted((recording_month(p), p) for p in normal_files)
+    dated_fault = sorted((recording_month(p), p) for p in anomaly_files)
+    months = sorted({month for month, _ in dated_normal})
+    if len(months) < 2:
+        raise ValueError("A chronological split needs at least two calendar months.")
+    cutoff = dated_normal[min(int(len(dated_normal) * train_fraction), len(dated_normal) - 1)][0]
+    if cutoff == months[0]:
+        cutoff = months[1]
+    return (
+        [p for month, p in dated_normal if month < cutoff],
+        [p for month, p in dated_normal if month >= cutoff],
+        [p for month, p in dated_fault if month >= cutoff],
+    )
+
+
 def build_feature_matrix(files: list[pathlib.Path]) -> np.ndarray:
     arrs = []
     for p in files:
@@ -116,16 +150,15 @@ def evaluate_machine(
 
     # Feature extraction
     t0 = time.perf_counter()
-    X_norm = build_feature_matrix(normal_files)
-    X_anom = build_feature_matrix(anomaly_files)
-    print(f"  Features: {X_norm.shape[0]} normal x {X_norm.shape[1]} dims, "
-          f"{X_anom.shape[0]} anomalous  ({time.perf_counter()-t0:.1f}s)")
-
-    # Time-based 70/30 split on normal files (sorted order)
-    n_train = int(len(X_norm) * train_fraction)
-    X_train = X_norm[:n_train]
-    X_test_normal = X_norm[n_train:]
-    X_test_anom = X_anom
+    train_files, test_normal_files, test_anomaly_files = chronological_split(
+        normal_files, anomaly_files, train_fraction
+    )
+    X_train = build_feature_matrix(train_files)
+    X_test_normal = build_feature_matrix(test_normal_files)
+    X_test_anom = build_feature_matrix(test_anomaly_files)
+    n_train = len(X_train)
+    print(f"  Features: {n_train} train normal, {len(X_test_normal)} test normal, "
+          f"{len(X_test_anom)} test faults ({time.perf_counter()-t0:.1f}s)")
     y_test = np.concatenate([
         np.zeros(len(X_test_normal), dtype=int),
         np.ones(len(X_test_anom), dtype=int),
@@ -161,12 +194,13 @@ def evaluate_machine(
     f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
     far = fp / (fp + tn) if (fp + tn) else 0.0
 
-    from sklearn.metrics import roc_auc_score, average_precision_score
+    from sklearn.metrics import average_precision_score, roc_auc_score
     try:
         roc = float(roc_auc_score(y_test, test_scores)) if y_test.sum() else float("nan")
         pr = float(average_precision_score(y_test, test_scores)) if y_test.sum() else float("nan")
     except ValueError:
-        roc = float("nan"); pr = float("nan")
+        roc = float("nan")
+        pr = float("nan")
 
     result = {
         "machine": machine,
@@ -177,8 +211,11 @@ def evaluate_machine(
         "recall": round(recall, 3),
         "f1": round(f1, 3),
         "far": round(far, 3),
+        "tp": tp, "fn": fn, "fp": fp, "tn": tn,
         "roc_auc": round(roc, 3),
         "pr_auc": round(pr, 3),
+        "macro_roc_auc": float("nan"),
+        "macro_pr_auc": float("nan"),
         "threshold": round(threshold, 4),
         "fit_time_sec": round(elapsed, 1),
     }
@@ -209,10 +246,10 @@ def main() -> int:
         return 1
 
     # Pooled metrics
-    total_tp = sum(int(r["recall"] * r["n_test_anom"]) for r in rows)
-    total_fn = sum(r["n_test_anom"] - int(r["recall"] * r["n_test_anom"]) for r in rows)
-    total_fp = sum(int(r["far"] * r["n_test_normal"]) for r in rows)
-    total_tn = sum(r["n_test_normal"] - int(r["far"] * r["n_test_normal"]) for r in rows)
+    total_tp = sum(r["tp"] for r in rows)
+    total_fn = sum(r["fn"] for r in rows)
+    total_fp = sum(r["fp"] for r in rows)
+    total_tn = sum(r["tn"] for r in rows)
     p_pool = total_tp / (total_tp + total_fp) if (total_tp + total_fp) else 0
     r_pool = total_tp / (total_tp + total_fn) if (total_tp + total_fn) else 0
     f1_pool = 2 * p_pool * r_pool / (p_pool + r_pool) if (p_pool + r_pool) else 0
@@ -227,8 +264,12 @@ def main() -> int:
         "recall": round(r_pool, 3),
         "f1": round(f1_pool, 3),
         "far": round(far_pool, 3),
-        "roc_auc": round(float(np.mean([r["roc_auc"] for r in rows])), 3),
-        "pr_auc": round(float(np.mean([r["pr_auc"] for r in rows])), 3),
+        "tp": total_tp, "fn": total_fn, "fp": total_fp, "tn": total_tn,
+        # Per-machine score scales have not been calibrated to one common scale.
+        "roc_auc": float("nan"),
+        "pr_auc": float("nan"),
+        "macro_roc_auc": round(float(np.mean([r["roc_auc"] for r in rows])), 3),
+        "macro_pr_auc": round(float(np.mean([r["pr_auc"] for r in rows])), 3),
         "threshold": "(per-machine)",
         "fit_time_sec": round(sum(r["fit_time_sec"] for r in rows), 1),
     }
@@ -241,7 +282,7 @@ def main() -> int:
         w.writeheader()
         w.writerows(rows)
 
-    print(f"\n=== Summary (Bosch CNC Machining) ===")
+    print("\n=== Summary (Bosch CNC Machining) ===")
     print(f"{'Machine':<10}{'F1':>8}{'P':>8}{'R':>8}{'FAR':>8}{'ROC-AUC':>10}{'PR-AUC':>10}")
     for r in rows:
         print(f"{r['machine']:<10}{r['f1']:>8.3f}{r['precision']:>8.3f}"

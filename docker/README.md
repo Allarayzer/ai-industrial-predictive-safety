@@ -11,13 +11,24 @@ The stack ships all nine services described in § 12.5:
 |------------|------|----------------------------------------------------------------|
 | api        | 8000 | REST API (FastAPI; `/predict`, `/score`, `/score-batch`, `/health`) |
 | postgres   | —    | Shared relational store (n8n state + MLflow backend)           |
-| redis      | —    | Queue backend for n8n in queue mode                            |
-| n8n        | 5678 | Low-code workflow orchestrator                                 |
+| redis      | —    | Available for a separately configured queue deployment         |
+| n8n        | 5678 | Low-code workflow orchestrator in regular mode                  |
 | mlflow     | 5000 | Experiment tracking + model registry                           |
 | prometheus | 9090 | Metrics scraping + alerting                                    |
 | grafana    | 3000 | Observability dashboards (backed by Prometheus + InfluxDB)     |
 | influxdb   | 8086 | Time-series store for telemetry                                |
 | simulator  | —    | Industrial telemetry generator (feeds `/predict` for smoke tests) |
+
+The development stack runs n8n in `regular` mode so workflow executions run in
+the main process. Queue mode requires a separate worker with shared database,
+Redis, and encryption-key configuration; merely changing `EXECUTIONS_MODE` to
+`queue` leaves production executions without a worker. See the
+[n8n queue-mode guide](https://docs.n8n.io/deploy/host-n8n/configure-n8n/scaling/enable-queue-mode).
+
+The demo API does not implement `/metrics`, so Prometheus has no API scrape job.
+`/health` is only a liveness check. The other scrape jobs are reference settings;
+check each service's metrics configuration and Prometheus target status before
+relying on monitoring. This stack has not been validated as a production deployment.
 
 ## Prerequisites
 
@@ -88,8 +99,9 @@ Before any non-development use:
 - Replace all default passwords (`aicta_change_me`, `admin_change_me`,
   `aicta-dev-token-change-me`) with managed secrets (Vault, AWS SSM,
   Docker swarm secrets).
-- Enable n8n authentication (`N8N_BASIC_AUTH_ACTIVE=true`,
-  `N8N_BASIC_AUTH_USER`, `N8N_BASIC_AUTH_PASSWORD`).
+- Configure n8n's supported user management and authentication for the deployed
+  version. The legacy `N8N_BASIC_AUTH_*` settings were removed in n8n 1.0;
+  see the [n8n user-management guide](https://docs.n8n.io/deploy/host-n8n/configure-n8n/user-management).
 - Put the API behind a TLS-terminating reverse proxy (Caddy, Traefik,
   nginx).
 - Restrict service-to-service traffic to a private Docker network and

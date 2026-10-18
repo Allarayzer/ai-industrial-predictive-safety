@@ -1,4 +1,9 @@
-"""CWRU bearing-fault robustness study (Alternative E4 for the paper).
+"""LEGACY CWRU robustness demonstration; historical description retained below.
+
+See docs/benchmarks.md: this is an IF/11-feature demonstration, not the
+claimed cascade below; window splitting and score alignment have limitations.
+
+CWRU bearing-fault robustness study (Alternative E4 for the paper).
 
 Unlike run_experiment_e4.py which runs on 3-channel synthetic data
 (where IsolationForest is inherently unstable), this benchmark uses
@@ -14,9 +19,9 @@ noise levels on the test set.
 Usage
 -----
 
-    python benchmarks/run_cwru_robustness.py --n-seeds 3
+    python benchmarks/run_cwru_robustness.py --allow-legacy --output-dir /tmp/cwru-run --n-seeds 3
 
-Writes benchmarks/results/cwru_robustness.csv with columns:
+Writes cwru_robustness.csv in the new explicit output directory with columns:
     sweep (noise | missing), sigma, missing_fraction, seed,
     f1, precision, recall, far.
 """
@@ -28,6 +33,21 @@ import pathlib
 import time
 from typing import List, Tuple
 
+
+def _parse_args() -> argparse.Namespace:
+    if __package__:
+        from ._legacy_guard import parse_legacy_args
+    else:
+        from _legacy_guard import parse_legacy_args
+
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--n-seeds", type=int, default=3)
+    return parse_legacy_args(parser)
+
+
+# Parse/guard the CLI before numerical imports, dataset access, or training.
+_CLI_ARGS = _parse_args() if __name__ == "__main__" else None
+
 import numpy as np
 import pandas as pd
 from scipy.io import loadmat
@@ -36,7 +56,6 @@ from ai_cta.anomaly_detector import IsolationForestDetector
 from ai_cta.evaluation import evaluate_binary_detector
 
 DATA_DIR = pathlib.Path(__file__).parent / "data" / "cwru"
-RESULTS_DIR = pathlib.Path(__file__).parent / "results"
 
 WINDOW = 1024
 STRIDE = 512
@@ -155,9 +174,7 @@ def evaluate(train_df: pd.DataFrame, test_df: pd.DataFrame, labels: np.ndarray,
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--n-seeds", type=int, default=3)
-    args = parser.parse_args()
+    args = _CLI_ARGS if _CLI_ARGS is not None else _parse_args()
 
     print("Loading CWRU dataset (may take a few seconds)...")
     train_df, test_df, labels = build_dataset()
@@ -201,9 +218,8 @@ def main() -> int:
                          "precision": round(p, 3), "recall": round(r, 3),
                          "far": round(far, 3)})
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out = RESULTS_DIR / "cwru_robustness.csv"
-    with out.open("w", newline="") as f:
+    out = args.output_dir / "cwru_robustness.csv"
+    with out.open("x", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)

@@ -94,8 +94,8 @@ class AsynchronousRiskFusion:
             }
         else:
             self.max_age_seconds = {ch: float(max_age_seconds) for ch in CHANNELS}
-        if any(v <= 0 for v in self.max_age_seconds.values()):
-            raise ValueError("All max_age_seconds values must be positive.")
+        if any(not np.isfinite(v) or v <= 0 for v in self.max_age_seconds.values()):
+            raise ValueError("All max_age_seconds values must be finite and positive.")
         self._latest: dict[str, ChannelObservation] = {}
 
     def update(
@@ -111,6 +111,8 @@ class AsynchronousRiskFusion:
         if not np.isfinite(value):
             raise ValueError("score must be finite.")
         ts = pd.Timestamp.now() if timestamp is None else pd.Timestamp(timestamp)
+        if pd.isna(ts):
+            raise ValueError("Channel timestamp must not be NaT.")
         previous = self._latest.get(channel)
         if previous is not None and ts < previous.timestamp:
             raise ValueError("Out-of-order channel update.")
@@ -126,8 +128,10 @@ class AsynchronousRiskFusion:
             self.update(channel, score, timestamp)
 
     def fuse(self, timestamp: pd.Timestamp | str | None = None) -> FusionSnapshot:
-        """Fuse all currently available, non-stale channel observations."""
+        """Fuse fresh observations; reject a decision time before an observation."""
         ts = pd.Timestamp.now() if timestamp is None else pd.Timestamp(timestamp)
+        if pd.isna(ts):
+            raise ValueError("Decision timestamp must not be NaT.")
         ages: dict[str, float] = {}
         available: list[str] = []
         stale: list[str] = []
@@ -137,7 +141,9 @@ class AsynchronousRiskFusion:
             if obs is None:
                 missing.append(ch)
                 continue
-            age = max((ts - obs.timestamp).total_seconds(), 0.0)
+            age = (ts - obs.timestamp).total_seconds()
+            if age < 0:
+                raise ValueError(f"Channel {ch!r} has an observation from the future.")
             ages[ch] = float(age)
             if age <= self.max_age_seconds[ch]:
                 available.append(ch)

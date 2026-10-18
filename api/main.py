@@ -16,7 +16,9 @@ API documentation (Swagger UI) is auto-generated at ``/docs``.
 from __future__ import annotations
 
 import logging
+import math
 from contextlib import asynccontextmanager
+from datetime import datetime
 
 import pandas as pd
 
@@ -30,8 +32,11 @@ from ai_cta.data import generate_synthetic_stream
 from ai_cta.risk_model import ChannelLimits
 
 try:
-    from fastapi import FastAPI, HTTPException
-    from pydantic import BaseModel, Field
+    from fastapi import FastAPI, HTTPException, Request
+    from fastapi.encoders import jsonable_encoder
+    from fastapi.exceptions import RequestValidationError
+    from fastapi.responses import JSONResponse
+    from pydantic import BaseModel, Field, FiniteFloat, field_validator
 except ImportError as exc:  # pragma: no cover - import-time guard
     raise ImportError(
         "The API service requires fastapi and pydantic. "
@@ -44,11 +49,23 @@ logger = logging.getLogger(__name__)
 class SensorReading(BaseModel):
     """Single sensor reading payload."""
     timestamp: str | None = Field(
-        None, description="ISO-8601 timestamp; auto-filled if omitted."
+        None,
+        description="ISO-8601 date or datetime, with optional timezone; auto-filled if omitted.",
     )
-    temperature: float
-    vibration: float
-    pressure: float
+    temperature: FiniteFloat
+    vibration: FiniteFloat
+    pressure: FiniteFloat
+
+    @field_validator("timestamp")
+    @classmethod
+    def validate_timestamp(cls, value: str | None) -> str | None:
+        if value is not None:
+            # Python 3.10 needs an explicit UTC offset in place of trailing Z.
+            datetime.fromisoformat(value[:-1] + "+00:00" if value.endswith("Z") else value)
+            # Both routes must accept only timestamps the batch pipeline can parse.
+            pd.Timestamp(value)
+        # Preserve the caller's spelling and existing naive/date-only behavior.
+        return value
 
 class BatchRequest(BaseModel):
     """Batch of sensor readings."""
@@ -118,6 +135,16 @@ app = FastAPI(
     version=__version__,
     lifespan=lifespan,
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(_request: Request, exc: RequestValidationError) -> JSONResponse:
+    # JSON numbers such as 1e999 decode to inf. Keep their validation errors
+    # serializable instead of raising a second error while building the 422.
+    detail = jsonable_encoder(
+        exc.errors(),
+        custom_encoder={float: lambda value: value if math.isfinite(value) else str(value)},
+    )
+    return JSONResponse(status_code=422, content={"detail": detail})
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:

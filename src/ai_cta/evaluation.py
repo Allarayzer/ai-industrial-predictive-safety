@@ -34,8 +34,18 @@ def evaluate_binary_detector(
     -------
     metrics : DetectorMetrics
     """
-    y_true = np.asarray(y_true).astype(int)
-    y_pred = np.asarray(y_pred).astype(int)
+    def binary_vector(values: np.ndarray, name: str) -> np.ndarray:
+        values = np.asarray(values, dtype=float)
+        if values.ndim == 2 and values.shape[1] == 1:
+            values = values[:, 0]
+        if values.ndim != 1:
+            raise ValueError(f"{name} must have shape (n,) or (n, 1).")
+        if not np.all(np.isfinite(values)) or not np.all(np.isin(values, [0, 1])):
+            raise ValueError(f"{name} must contain only finite binary 0/1 labels.")
+        return values.astype(int)
+
+    y_true = binary_vector(y_true, "y_true")
+    y_pred = binary_vector(y_pred, "y_pred")
     if len(y_true) != len(y_pred):
         raise ValueError("y_true and y_pred must have the same length.")
     tp = int(np.sum((y_pred == 1) & (y_true == 1)))

@@ -1,5 +1,5 @@
 """LEGACY EXPLORATORY PROTOCOL — not the corrected PeerJ evaluation.
-See experiments/peerj/README.md for disjoint calibration/test procedures.
+See docs/benchmarks.md for protocol limitations and study boundaries.
 This historical script reuses fitting/calibration data during evaluation.
 
 CWRU bearing-fault benchmark runner.
@@ -13,12 +13,36 @@ CWRU recordings are named by the fault-severity (e.g. 97.mat, 105.mat,
 the `fault/` subdirectory as anomalous.
 """
 from __future__ import annotations
+
 import argparse
 import csv
 import pathlib
 import time
+
+
+def _parse_args() -> argparse.Namespace:
+    if __package__:
+        from ._legacy_guard import parse_legacy_args
+    else:
+        from _legacy_guard import parse_legacy_args
+
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--window", type=int, default=1024, help="Samples per window.")
+    parser.add_argument("--stride", type=int, default=512, help="Window stride.")
+    parser.add_argument("--skip-lstm", action="store_true")
+    parser.add_argument(
+        "--sampling-rate", type=float, default=12000.0,
+        help="Sampling rate in Hz (12000 or 48000 for CWRU).",
+    )
+    return parse_legacy_args(parser)
+
+
+# Parse/guard the CLI before numerical imports, dataset access, or training.
+_CLI_ARGS = _parse_args() if __name__ == "__main__" else None
+
 import numpy as np
 import pandas as pd
+
 from ai_cta.anomaly_detector import (
     HybridDetector,
     IsolationForestDetector,
@@ -26,7 +50,6 @@ from ai_cta.anomaly_detector import (
 from ai_cta.evaluation import evaluate_binary_detector
 
 DATA_DIR = pathlib.Path(__file__).parent / "data" / "cwru"
-RESULTS_DIR = pathlib.Path(__file__).parent / "results"
 
 def load_mat_signal(path: pathlib.Path) -> np.ndarray:
     """Return the drive-end vibration signal from a CWRU .mat file."""
@@ -117,20 +140,7 @@ def run_one_method(
     }
 
 def main() -> int:
-    import warnings
-    warnings.warn(
-        "Legacy overlapping evaluation: use experiments/peerj for corrected study protocols.",
-        UserWarning, stacklevel=2,
-    )
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--window", type=int, default=1024, help="Samples per window.")
-    parser.add_argument("--stride", type=int, default=512, help="Window stride.")
-    parser.add_argument("--skip-lstm", action="store_true")
-    parser.add_argument(
-        "--sampling-rate", type=float, default=12000.0,
-        help="Sampling rate in Hz (12000 or 48000 for CWRU).",
-    )
-    args = parser.parse_args()
+    args = _CLI_ARGS if _CLI_ARGS is not None else _parse_args()
     normal_paths = sorted((DATA_DIR / "normal").glob("*.mat"))
     fault_paths = sorted((DATA_DIR / "fault").glob("*.mat"))
     if not normal_paths or not fault_paths:
@@ -190,9 +200,8 @@ def main() -> int:
             )
         except ImportError as exc:
             print(f"Skipping LSTM/hybrid: {exc}")
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out_path = RESULTS_DIR / "cwru_results.csv"
-    with out_path.open("w", newline="") as f:
+    out_path = args.output_dir / "cwru_results.csv"
+    with out_path.open("x", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)

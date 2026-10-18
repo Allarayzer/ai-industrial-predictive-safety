@@ -83,10 +83,12 @@ class DriftDetector:
         """
         if not isinstance(reference, pd.DataFrame):
             raise TypeError("reference must be a pandas DataFrame.")
-        self.channels_ = list(reference.select_dtypes(include="number").columns)
-        if not self.channels_:
+        channels = list(reference.select_dtypes(include="number").columns)
+        if not channels:
             raise ValueError("No numeric channels found in reference.")
-        self._reference = reference[self.channels_].copy()
+        self._validate_window(reference[channels])
+        self.channels_ = channels
+        self._reference = reference[channels].copy()
         if self.method == "psi":
             self._bin_edges = {
                 ch: self._compute_bin_edges(self._reference[ch].to_numpy())
@@ -101,11 +103,28 @@ class DriftDetector:
             )
         quantiles = np.linspace(0.0, 1.0, self.n_bins + 1)
         edges = np.unique(np.quantile(values, quantiles))
-        if len(edges) < 2:
-            edges = np.array([values.min(), values.max() + 1e-9])
+        if len(edges) == 1:
+            # Isolate the constant value so a shift in either direction is
+            # observable. Dropping the endpoints would leave one infinite bin.
+            value = edges[0]
+            with np.errstate(over="ignore", under="ignore"):
+                upper = np.nextafter(value, np.inf)
+            return np.unique(np.array([-np.inf, value, upper, np.inf]))
+        if len(edges) == 2:
+            # Highly discrete references can also lose every interior edge.
+            midpoint = edges[0] / 2 + edges[1] / 2
+            if midpoint <= edges[0]:
+                midpoint = edges[1]
+            return np.array([-np.inf, midpoint, np.inf])
         # Sentinel edges so out-of-range new values are bucketed safely.
         edges = np.concatenate([[-np.inf], edges[1:-1], [np.inf]])
         return edges
+    @staticmethod
+    def _validate_window(window: pd.DataFrame) -> None:
+        if window.empty:
+            raise ValueError("Drift windows must not be empty.")
+        if not np.isfinite(window.to_numpy(dtype=float)).all():
+            raise ValueError("Drift windows must contain only finite values.")
     # ----------------------------------------------------------- detect
     def detect(self, current: pd.DataFrame) -> DriftReport:
         """Check the current window against the fitted reference."""
@@ -115,6 +134,7 @@ class DriftDetector:
         missing = set(self.channels_) - set(current.columns)
         if missing:
             raise ValueError(f"Channels missing in current window: {missing}")
+        self._validate_window(current[self.channels_])
         if self.method == "psi":
             return self._detect_psi(current)
         return self._detect_ks(current)

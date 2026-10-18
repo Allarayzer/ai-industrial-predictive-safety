@@ -3,7 +3,7 @@ info:
   title: AI-CTA Predictive Safety API
   description: Reference REST service for the AI-Industrial-Safety pipeline. See accompanying
     monograph, Chapter 10.8.
-  version: 1.1.0
+  version: 1.2.2.dev0
 paths:
   /health:
     get:
@@ -195,7 +195,8 @@ components:
           - type: string
           - type: 'null'
           title: Timestamp
-          description: ISO-8601 timestamp; auto-filled if omitted.
+          description: ISO-8601 date or datetime, with optional timezone; auto-filled
+            if omitted.
         temperature:
           type: number
           title: Temperature

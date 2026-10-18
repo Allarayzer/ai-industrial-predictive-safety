@@ -1,0 +1,4 @@
+# Explicit study entrypoints and their protocol contract for source distributions.
+include benchmarks/run_bosch_path_order_corrected.py
+include benchmarks/run_experiment_e5_causal.py
+include docs/bosch-e5-protocols.md

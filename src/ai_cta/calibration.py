@@ -33,7 +33,9 @@ class OnlineCalibrator:
     """Periodic recalibration of an anomaly threshold.
     Maintains a sliding window of recently observed scores from
     known-normal data points; periodically uses split conformal
-    prediction to recompute the operational threshold.
+    ranks to recompute the operational threshold. The usual marginal
+    conformal guarantee requires exchangeability; a sliding, adaptive
+    time-series buffer alone does not establish that assumption.
     Parameters
     ----------
     alpha : float, default=0.05
@@ -81,12 +83,18 @@ class OnlineCalibrator:
     # -------------------------------------------------------- ingestion
     def add(self, score: float) -> None:
         """Append a single normal-data score to the calibration buffer."""
-        self._buffer.append(float(score))
+        value = float(score)
+        if not np.isfinite(value):
+            raise ValueError("score must be finite.")
+        self._buffer.append(value)
         self._observations_seen += 1
     def add_batch(self, scores: np.ndarray) -> None:
-        """Append multiple scores at once."""
-        for s in scores:
-            self.add(float(s))
+        """Append a finite 1-D batch atomically, rejecting it before any mutation."""
+        values = np.asarray(scores, dtype=float)
+        if values.ndim != 1 or not np.all(np.isfinite(values)):
+            raise ValueError("scores must be a finite 1-D array.")
+        self._buffer.extend(values.tolist())
+        self._observations_seen += len(values)
     # ----------------------------------------------------- calibration
     def maybe_recalibrate(self) -> CalibrationUpdate | None:
         """Return a fresh threshold if the schedule allows, else None.

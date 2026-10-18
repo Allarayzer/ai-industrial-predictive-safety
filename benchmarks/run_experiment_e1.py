@@ -1,4 +1,9 @@
-"""Experiment E1 (monograph § 13.5): anomaly detection on Dataset S1.
+"""LEGACY E1: historical anomaly-detection demonstration with known evaluation bias.
+
+The description below records the historical protocol, not a validated claim.
+See docs/benchmarks.md for limitations and maintained alternatives.
+
+Experiment E1 (monograph § 13.5): anomaly detection on Dataset S1.
 
 Reproduces Table 13.1: four detector configurations compared on a
 synthetic multichannel industrial stream with injected anomalies.
@@ -17,8 +22,23 @@ from __future__ import annotations
 
 import argparse
 import csv
-import pathlib
 import time
+
+
+def _parse_args() -> argparse.Namespace:
+    if __package__:
+        from ._legacy_guard import parse_legacy_args
+    else:
+        from _legacy_guard import parse_legacy_args
+
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--n-seeds", type=int, default=5)
+    parser.add_argument("--n-samples", type=int, default=5000)
+    return parse_legacy_args(parser)
+
+
+# Parse/guard the CLI before numerical imports, dataset access, or training.
+_CLI_ARGS = _parse_args() if __name__ == "__main__" else None
 
 import numpy as np
 import pandas as pd
@@ -37,8 +57,6 @@ from ai_cta.anomaly_detector import (
     LSTMDetector,
 )
 from ai_cta.data import generate_synthetic_stream, inject_anomalies
-
-RESULTS_DIR = pathlib.Path(__file__).parent / "results"
 
 
 def build_dataset(
@@ -179,10 +197,7 @@ METHODS = {
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--n-seeds", type=int, default=5)
-    parser.add_argument("--n-samples", type=int, default=5000)
-    args = parser.parse_args()
+    args = _CLI_ARGS if _CLI_ARGS is not None else _parse_args()
 
     all_rows: list[dict] = []
     for seed in range(args.n_seeds):
@@ -204,9 +219,8 @@ def main() -> int:
                   f"PR={metrics['pr_auc']:.3f}  FAR/h={metrics['far_per_hour']:.2f}")
             all_rows.append(row)
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out = RESULTS_DIR / "experiment_e1_s1.csv"
-    with out.open("w", newline="") as f:
+    out = args.output_dir / "experiment_e1_s1.csv"
+    with out.open("x", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(all_rows[0].keys()))
         w.writeheader()
         w.writerows(all_rows)

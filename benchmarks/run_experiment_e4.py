@@ -1,4 +1,9 @@
-"""Experiment E4 (monograph § 13.8): robustness to noise and missingness.
+"""LEGACY E4: historical robustness demonstration with score-alignment limitations.
+
+The description below records the historical protocol, not a validated claim.
+See docs/benchmarks.md for limitations.
+
+Experiment E4 (monograph § 13.8): robustness to noise and missingness.
 
 Measures F1 degradation of the Cascade detector as Gaussian noise
 amplitude sigma and fraction of missing data increase.
@@ -14,8 +19,23 @@ from __future__ import annotations
 
 import argparse
 import csv
-import pathlib
 import time
+
+
+def _parse_args() -> argparse.Namespace:
+    if __package__:
+        from ._legacy_guard import parse_legacy_args
+    else:
+        from _legacy_guard import parse_legacy_args
+
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--n-seeds", type=int, default=3)
+    parser.add_argument("--n-samples", type=int, default=4000)
+    return parse_legacy_args(parser)
+
+
+# Parse/guard the CLI before numerical imports, dataset access, or training.
+_CLI_ARGS = _parse_args() if __name__ == "__main__" else None
 
 import numpy as np
 import pandas as pd
@@ -23,8 +43,6 @@ import pandas as pd
 from ai_cta.anomaly_detector import HybridDetector
 from ai_cta.data import generate_synthetic_stream, inject_anomalies
 from ai_cta.evaluation import evaluate_binary_detector
-
-RESULTS_DIR = pathlib.Path(__file__).parent / "results"
 
 
 def corrupt(test: pd.DataFrame, sigma: float, missing: float, seed: int) -> pd.DataFrame:
@@ -83,10 +101,7 @@ def evaluate_cascade(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--n-seeds", type=int, default=3)
-    parser.add_argument("--n-samples", type=int, default=4000)
-    args = parser.parse_args()
+    args = _CLI_ARGS if _CLI_ARGS is not None else _parse_args()
 
     # Generate one clean dataset per seed.
     datasets = []
@@ -136,9 +151,8 @@ def main() -> int:
                 "seed": seed, "f1": round(f1, 3),
             })
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out = RESULTS_DIR / "experiment_e4_robustness.csv"
-    with out.open("w", newline="") as f:
+    out = args.output_dir / "experiment_e4_robustness.csv"
+    with out.open("x", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(results[0].keys()))
         w.writeheader()
         w.writerows(results)

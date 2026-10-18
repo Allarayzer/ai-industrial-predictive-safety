@@ -1,10 +1,10 @@
 # Reference docker-compose stack for the AI-CTA pipeline.
 #
-# Matches the 9-container production stack described in monograph § 12.5:
+# Development reference for the 9-container topology in monograph § 12.5:
 #   api          - FastAPI service exposing /predict, /score, /score-batch
 #   postgres     - relational state for n8n + MLflow backend
-#   redis        - queue backing n8n executions
-#   n8n          - low-code workflow orchestrator
+#   redis        - available for a separately configured n8n queue deployment
+#   n8n          - low-code workflow orchestrator (regular mode; no worker required)
 #   mlflow       - ML experiment tracking + model registry
 #   grafana      - observability dashboards
 #   prometheus   - metrics scraping + alerting
@@ -79,7 +79,7 @@ services:
       - DB_POSTGRESDB_USER=aicta
       - DB_POSTGRESDB_PASSWORD=aicta_change_me
       - QUEUE_BULL_REDIS_HOST=redis
-      - EXECUTIONS_MODE=queue
+      - EXECUTIONS_MODE=regular
       - N8N_HOST=localhost
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
