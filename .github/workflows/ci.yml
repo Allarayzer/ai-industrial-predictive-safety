@@ -50,7 +50,7 @@ jobs:
       - name: Install test and deep-learning dependencies
         run: pip install -e ".[test,deep]"
       - name: Check sample pairing and one-batch training
-        run: python -m pytest tests/test_deep_losses.py
+        run: python -m pytest tests/test_deep_losses.py tests/test_benchmark_regressions.py
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -63,4 +63,4 @@ jobs:
       - name: Install ruff
         run: pip install ruff
       - name: Run ruff
-        run: ruff check src/ tests/ api/ examples/quick_start.py experiments/peerj/verify_manifest.py --output-format=github
+        run: ruff check src/ tests/ api/ examples/quick_start.py experiments/peerj/verify_manifest.py experiments/maintained/ benchmarks/_legacy_guard.py benchmarks/run_experiment_e5.py benchmarks/run_cmapss_rul_normalized.py --output-format=github

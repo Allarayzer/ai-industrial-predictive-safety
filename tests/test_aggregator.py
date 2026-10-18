@@ -65,7 +65,7 @@ def test_aggregator_calibrate_weights_runs():
     assert weights[0] > weights[2]
 
 def test_aggregator_alignment_handles_unequal_lengths():
-    agg = RiskAggregator(weights=(1.0, 0.0, 0.0))
+    agg = RiskAggregator(weights=(1.0, 0.0, 0.0), alignment_policy="legacy_resample")
     a = np.linspace(0.1, 0.9, 100)
     b = np.linspace(0.0, 1.0, 50)  # shorter
     c = np.linspace(0.0, 1.0, 200)  # longer

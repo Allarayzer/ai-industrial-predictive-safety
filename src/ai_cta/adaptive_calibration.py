@@ -71,8 +71,10 @@ class RegimeConformalCalibrator:
     def apply(self, scores: np.ndarray, regimes: np.ndarray) -> np.ndarray:
         values = np.asarray(scores, dtype=float)
         groups = np.asarray(regimes, dtype=object)
-        if len(values) != len(groups):
-            raise ValueError("scores and regimes must have equal length.")
+        if values.ndim != 1 or groups.ndim != 1 or len(values) != len(groups):
+            raise ValueError("scores and regimes must be aligned 1-D arrays.")
+        if not np.all(np.isfinite(values)):
+            raise ValueError("scores must contain only finite values.")
         thresholds = np.asarray([self.threshold_for(g) for g in groups], dtype=float)
         return (values > thresholds).astype(int)
 

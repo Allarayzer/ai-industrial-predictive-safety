@@ -22,6 +22,17 @@ import numpy as np
 import pandas as pd
 
 
+def _finite_vector(values: np.ndarray, name: str) -> np.ndarray:
+    values = np.asarray(values, dtype=float)
+    if values.ndim == 2 and values.shape[1] == 1:
+        values = values[:, 0]
+    if values.ndim != 1 or not len(values):
+        raise ValueError(f"{name} must have nonempty shape (n,) or (n, 1).")
+    if not np.all(np.isfinite(values)):
+        raise ValueError(f"{name} must contain only finite values.")
+    return values
+
+
 # ===========================================================================
 # Model A — XGBoost quantile regression
 # ===========================================================================
@@ -291,16 +302,28 @@ class RULEnsemble:
             self.weights_[2] = 0.0
             self.weights_[:2] = 0.5
 
-        # Optional: grid-search optimal weights on validation data
-        if y_val is not None and X_tabular_val is not None \
-                and X_sequential_val is not None and elapsed_val is not None:
+        # Tuning needs aligned labels and both learned model inputs. Elapsed
+        # cycles are required only when the physics model participates.
+        if any(value is not None for value in (
+            y_val, X_tabular_val, X_sequential_val, elapsed_val,
+        )):
+            if y_val is None or X_tabular_val is None or X_sequential_val is None:
+                raise ValueError("Tuning requires X_tabular_val, X_sequential_val, and y_val.")
+            if self.model_c_ is not None and elapsed_val is None:
+                raise ValueError("elapsed_val is required when tuning an active physics model.")
             self._optimise_weights(X_tabular_val, X_sequential_val, elapsed_val, y_val)
 
         return self
 
     def _pinball_loss(self, y_true: np.ndarray, preds: dict[float, np.ndarray]) -> float:
+        y_true = _finite_vector(y_true, "y_true")
+        if not preds:
+            raise ValueError("At least one quantile prediction is required.")
         loss = 0.0
         for q, p in preds.items():
+            p = _finite_vector(p, "quantile prediction")
+            if len(p) != len(y_true):
+                raise ValueError("Labels and quantile predictions must have equal length.")
             err = y_true - p
             loss += float(np.mean(np.maximum(q * err, (q - 1) * err)))
         return loss / len(preds)
@@ -309,34 +332,28 @@ class RULEnsemble:
         self,
         X_tabular_val: np.ndarray,
         X_sequential_val: pd.DataFrame,
-        elapsed_val: np.ndarray,
+        elapsed_val: np.ndarray | None,
         y_val: np.ndarray,
     ) -> None:
         """Simple 3-D grid search on the 2-simplex of ensemble weights."""
-        q_a = self.model_a_.predict_quantiles(X_tabular_val)
-        q_b = self.model_b_.predict_quantiles(X_sequential_val)
-        q_c = None
-        if self.model_c_ is not None:
-            c_pred = self.model_c_.predict(elapsed_val)
-            # Model C only gives a point estimate; fake quantiles by adding
-            # a small spread proportional to Weibull std.
-            spread = self.model_c_.params_.scale * 0.15 if self.model_c_.params_ else 10.0
-            q_c = {
-                0.1: np.clip(c_pred - spread, 0, self.rul_max),
-                0.5: c_pred,
-                0.9: np.clip(c_pred + spread, 0, self.rul_max),
-            }
+        q_a, q_b, q_c = self._component_predictions(
+            X_tabular_val, X_sequential_val, elapsed_val,
+            include_physics=self.model_c_ is not None,
+        )
+        y_val = _finite_vector(y_val, "y_val")
+        if len(y_val) != len(next(iter(q_a.values()))):
+            raise ValueError("Validation predictions and y_val must have equal length.")
 
         grid = np.linspace(0, 1, self.weight_grid)
         best_loss = float("inf")
         best_w = self.weights_.copy()
         for wa in grid:
-            for wb in grid:
+            # With two active models, the second weight is the complement,
+            # not another independent point inside the three-model simplex.
+            for wb in (grid if q_c is not None else [1.0 - wa]):
                 if wa + wb > 1.0 + 1e-6:
                     continue
-                wc = 1.0 - wa - wb if (q_c is not None) else 0.0
-                if q_c is None and wc != 0:
-                    continue
+                wc = max(0.0, 1.0 - wa - wb) if q_c is not None else 0.0
                 combined = {}
                 for q in self.quantiles:
                     pred = wa * q_a[q] + wb * q_b[q]
@@ -347,7 +364,49 @@ class RULEnsemble:
                 if loss < best_loss:
                     best_loss = loss
                     best_w = np.array([wa, wb, wc])
-        self.weights_ = best_w
+        self.weights_ = best_w / best_w.sum()
+
+    def _component_predictions(
+        self,
+        X_tabular: np.ndarray,
+        X_sequential: pd.DataFrame,
+        elapsed: np.ndarray | None,
+        include_physics: bool,
+    ) -> tuple[dict[float, np.ndarray], dict[float, np.ndarray], dict[float, np.ndarray] | None]:
+        """Normalize outputs and reject sample-count mismatches before arithmetic."""
+        if include_physics and elapsed is None:
+            raise ValueError("elapsed is required when the physics model has positive weight.")
+        components = []
+        for name, model, X in (
+            ("Model A", self.model_a_, X_tabular),
+            ("Model B", self.model_b_, X_sequential),
+        ):
+            raw = model.predict_quantiles(X)
+            if not self.quantiles or any(q not in raw for q in self.quantiles):
+                raise ValueError(f"{name} must predict all configured quantiles.")
+            components.append({q: _finite_vector(raw[q], name) for q in self.quantiles})
+        q_a, q_b = components
+        lengths = {len(values) for component in components for values in component.values()}
+        if len(lengths) != 1:
+            raise ValueError("All model predictions must have equal length and aligned rows.")
+        n = next(iter(lengths))
+        q_c = None
+        if include_physics:
+            elapsed = _finite_vector(elapsed, "elapsed")
+            if len(elapsed) != n:
+                raise ValueError("elapsed and model predictions must have equal length.")
+            c_pred = _finite_vector(self.model_c_.predict(elapsed), "Model C")
+            if len(c_pred) != n:
+                raise ValueError("Model C and other model predictions must have equal length.")
+            # Preserve the reference model's heuristic spread. This is not
+            # a calibrated Weibull predictive interval.
+            spread = self.model_c_.params_.scale * 0.15 if self.model_c_.params_ else 10.0
+            q_c = {
+                q: np.clip(c_pred + (0 if q == 0.5 else (-spread if q < 0.5 else spread)),
+                           0, self.rul_max)
+                for q in self.quantiles
+            }
+        return q_a, q_b, q_c
 
     def predict_quantiles(
         self,
@@ -355,20 +414,16 @@ class RULEnsemble:
         X_sequential: pd.DataFrame,
         elapsed: np.ndarray | None = None,
     ) -> dict[float, np.ndarray]:
-        q_a = self.model_a_.predict_quantiles(X_tabular)
-        q_b = self.model_b_.predict_quantiles(X_sequential)
         w = self.weights_
+        q_a, q_b, q_c = self._component_predictions(
+            X_tabular, X_sequential, elapsed,
+            include_physics=self.model_c_ is not None and w[2] > 0,
+        )
         combined: dict[float, np.ndarray] = {}
         for q in self.quantiles:
             pred = w[0] * q_a[q] + w[1] * q_b[q]
-            if self.model_c_ is not None and w[2] > 0 and elapsed is not None:
-                c_pred = self.model_c_.predict(elapsed)
-                spread = self.model_c_.params_.scale * 0.15
-                c_quant = c_pred if q == 0.5 else (
-                    np.clip(c_pred - spread, 0, self.rul_max) if q < 0.5
-                    else np.clip(c_pred + spread, 0, self.rul_max)
-                )
-                pred = pred + w[2] * c_quant
+            if q_c is not None:
+                pred = pred + w[2] * q_c[q]
             combined[q] = np.clip(pred, 0, self.rul_max)
         return combined
 

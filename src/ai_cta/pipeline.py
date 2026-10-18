@@ -147,12 +147,13 @@ class SafetyPipeline:
         def _callback(event: PipelineEvent) -> None:
             import requests  # noqa: WPS433 - intentional lazy import
             try:
-                requests.post(
+                response = requests.post(
                     webhook_url,
                     data=json.dumps(event.to_dict()),
                     headers={"Content-Type": "application/json"},
                     timeout=timeout,
                 )
+                response.raise_for_status()
             except requests.RequestException as exc:
                 logger.error("Webhook POST failed: %s", exc)
         return _callback

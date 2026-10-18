@@ -1,4 +1,9 @@
-"""Experiment E6 (monograph § 13.10): API performance load test.
+"""LEGACY E6: API timing demonstration with incomplete failure accounting.
+
+The description below records the historical protocol, not validated capacity.
+See docs/benchmarks.md for limitations.
+
+Experiment E6 (monograph § 13.10): API performance load test.
 
 Measures the FastAPI service latency and throughput using the in-process
 TestClient, which strips network stack overhead so the numbers reflect
@@ -17,7 +22,7 @@ Two workloads:
 Usage
 -----
 
-    python benchmarks/run_experiment_e6.py --n-requests 500
+    python benchmarks/run_experiment_e6.py --allow-legacy --output-dir /tmp/e6-run --n-requests 500
 
 Note that `pip install -e ".[api]"` is required.
 """
@@ -25,12 +30,24 @@ from __future__ import annotations
 
 import argparse
 import csv
-import pathlib
 import time
 
-import numpy as np
 
-RESULTS_DIR = pathlib.Path(__file__).parent / "results"
+def _parse_args() -> argparse.Namespace:
+    if __package__:
+        from ._legacy_guard import parse_legacy_args
+    else:
+        from _legacy_guard import parse_legacy_args
+
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--n-requests", type=int, default=500)
+    return parse_legacy_args(parser)
+
+
+# Parse/guard the CLI before numerical imports, dataset access, or training.
+_CLI_ARGS = _parse_args() if __name__ == "__main__" else None
+
+import numpy as np
 
 
 def _check_fastapi() -> None:
@@ -115,9 +132,7 @@ def summarize(name: str, latencies: list[float], wall_seconds: float) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--n-requests", type=int, default=500)
-    args = parser.parse_args()
+    args = _CLI_ARGS if _CLI_ARGS is not None else _parse_args()
 
     _check_fastapi()
 
@@ -139,9 +154,8 @@ def main() -> int:
         )
         rows.append(row)
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out = RESULTS_DIR / "experiment_e6_api.csv"
-    with out.open("w", newline="") as f:
+    out = args.output_dir / "experiment_e6_api.csv"
+    with out.open("x", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)

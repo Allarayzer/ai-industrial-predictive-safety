@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
+from fractions import Fraction
+from math import ceil
 
 import numpy as np
 import pandas as pd
@@ -29,6 +31,18 @@ except ImportError:  # pragma: no cover - optional dependency
     tf = None  # type: ignore[assignment]
 
 
+def _finite_vector(values: np.ndarray, name: str) -> np.ndarray:
+    """Normalize a vector or single-column array without cross-sample broadcasting."""
+    result = np.asarray(values, dtype=float)
+    if result.ndim == 2 and result.shape[1] == 1:
+        result = result[:, 0]
+    if result.ndim != 1 or not len(result):
+        raise ValueError(f"{name} must be a nonempty array of shape (n,) or (n, 1).")
+    if not np.all(np.isfinite(result)):
+        raise ValueError(f"{name} must contain only finite values.")
+    return result
+
+
 @dataclass(frozen=True)
 class ChannelLimits:
     """Operational limits for a single sensor channel.
@@ -44,6 +58,8 @@ class ChannelLimits:
         0.0 means within warning band; values up to 1.0 indicate proximity to
         or violation of the alarm thresholds.
         """
+        if not np.isfinite(value):
+            raise ValueError("Channel values must be finite.")
         if self.alarm_low < value < self.alarm_high:
             # Inside alarm band: linear ramp from warn to alarm.
             if value < self.warn_low:
@@ -75,6 +91,10 @@ class RiskScorer:
         ML score.
     levels : sequence of RiskLevel, optional
         Discrete categories. Defaults to LOW / MEDIUM / HIGH / CRITICAL.
+    missing_channels : {"raise", "legacy_ignore"}, default="raise"
+        Require all configured rule channels. The explicit legacy policy
+        ignores missing channels and averages only the rules that are present;
+        that changes the score's meaning and requires separate calibration.
     Examples
     --------
     >>> scorer = RiskScorer(
@@ -102,18 +122,30 @@ class RiskScorer:
         ml_weight: float = 0.6,
         limits: Mapping[str, ChannelLimits] | None = None,
         levels: tuple[RiskLevel, ...] = DEFAULT_LEVELS,
+        missing_channels: str = "raise",
     ):
         if not 0.0 <= ml_weight <= 1.0:
             raise ValueError("ml_weight must be in [0, 1].")
+        if missing_channels not in {"raise", "legacy_ignore"}:
+            raise ValueError("missing_channels must be 'raise' or 'legacy_ignore'.")
         self.ml_weight = ml_weight
         self.limits = dict(limits) if limits else {}
         self.levels = tuple(levels)
+        self.missing_channels = missing_channels
     def score(
         self,
         anomaly_score: float,
         channel_values: Mapping[str, float] | None = None,
     ) -> float:
         """Compute a composite risk score in [0, 1]."""
+        if not np.isfinite(anomaly_score):
+            raise ValueError("anomaly_score must be finite.")
+        if not self.limits:
+            return float(np.clip(anomaly_score, 0.0, 1.0))
+        channel_values = channel_values if channel_values is not None else {}
+        missing = self.limits.keys() - channel_values.keys()
+        if missing and self.missing_channels == "raise":
+            raise ValueError(f"Missing configured rule channels: {sorted(missing)}.")
         score = float(self.ml_weight) * float(np.clip(anomaly_score, 0.0, 1.0))
         if self.limits and channel_values:
             rule_weight = 1.0 - self.ml_weight
@@ -158,8 +190,14 @@ class ConformalThresholdCalibrator:
     Parameters
     ----------
     alpha : float, default=0.05
-        Target false-alarm rate. The calibrated threshold flags at most a
-        fraction alpha of the known-normal calibration set as anomalous.
+        Target marginal false-alarm rate for a new normal observation under
+        exchangeability with the held-out calibration scores. The threshold
+        is the k-th observed order statistic, k=ceil((n+1)*(1-alpha)); ties
+        are covered because only strictly larger scores trigger an alarm.
+        The rank uses exact arithmetic on the decimal representation
+        ``str(alpha)``, without a tolerance that could round the rank down.
+        A finite threshold requires k <= n; smaller samples are rejected.
+        No conditional, time-series, or adaptive guarantee is implied.
     random_state : int, default=42
     Attributes
     ----------
@@ -174,7 +212,7 @@ class ConformalThresholdCalibrator:
         self.alpha = alpha
         self.random_state = random_state
     def calibrate(self, calibration_scores: np.ndarray) -> ConformalThresholdCalibrator:
-        """Compute the (1 - alpha)-quantile on a held-out calibration set.
+        """Select the finite-sample conformal order statistic without interpolation.
         Parameters
         ----------
         calibration_scores : ndarray
@@ -184,23 +222,32 @@ class ConformalThresholdCalibrator:
         scores = np.asarray(calibration_scores, dtype=float)
         if scores.ndim != 1:
             raise ValueError("calibration_scores must be 1-D.")
+        if not np.all(np.isfinite(scores)):
+            raise ValueError("calibration_scores must contain only finite values.")
         n = len(scores)
-        if n < int(1 / self.alpha):
+        # Binary float arithmetic can move an exact integer rank upward
+        # (e.g. alpha=.95, n=19). Use the documented decimal alpha exactly;
+        # a level just below a boundary must still receive the higher rank.
+        rank = ceil((n + 1) * (1 - Fraction(str(self.alpha))))
+        if rank > n:
             raise ValueError(
-                f"Need at least {int(1 / self.alpha)} calibration points "
-                f"for alpha={self.alpha}; got {n}."
+                f"Insufficient calibration points for a finite threshold: "
+                f"alpha={self.alpha}, n={n}, required order-statistic rank={rank}."
             )
-        # The finite-sample-corrected quantile guarantees the coverage.
-        level = np.ceil((n + 1) * (1 - self.alpha)) / n
-        level = float(np.clip(level, 0.0, 1.0))
-        self.threshold_ = float(np.quantile(scores, level))
+        threshold = float(np.partition(scores, rank - 1)[rank - 1])
+        if not np.isfinite(threshold):
+            raise ValueError("Calibration produced a nonfinite threshold.")
+        self.threshold_ = threshold
         self.calibration_size_ = n
         return self
     def apply(self, scores: np.ndarray) -> np.ndarray:
         """Return binary decisions using the calibrated threshold."""
         if not hasattr(self, "threshold_"):
             raise RuntimeError("Call calibrate() before apply().")
-        return (np.asarray(scores) > self.threshold_).astype(int)
+        values = np.asarray(scores, dtype=float)
+        if not np.all(np.isfinite(values)):
+            raise ValueError("scores must contain only finite values.")
+        return (values > self.threshold_).astype(int)
 
 
 
@@ -231,9 +278,14 @@ class RiskAggregator:
         Boundary values mapping R_final to alert levels
         (OK / Warning / Critical / Emergency), per § 8.4.3.
     cost_fn : float, default=10.0
-        False-negative cost in the weight-calibration loss.
+        Finite positive false-negative cost in the weight-calibration loss.
     cost_fp : float, default=1.0
-        False-positive cost.
+        Finite positive false-positive cost.
+    alignment_policy : {"strict", "legacy_resample"}, default="strict"
+        Require equal-length, row-aligned component vectors. The explicit
+        legacy policy resamples each vector over normalized row positions;
+        it does not establish timestamp alignment and can discard events.
+        Weight calibration always requires exact row alignment.
     Attributes
     ----------
     w : ndarray of shape (3,)
@@ -246,10 +298,16 @@ class RiskAggregator:
         thresholds: tuple[float, float, float] = (0.3, 0.6, 0.85),
         cost_fn: float = 10.0,
         cost_fp: float = 1.0,
+        alignment_policy: str = "strict",
     ):
+        if alignment_policy not in {"strict", "legacy_resample"}:
+            raise ValueError("alignment_policy must be 'strict' or 'legacy_resample'.")
+        self.alignment_policy = alignment_policy
         w = np.asarray(weights, dtype=float)
         if w.shape != (3,):
             raise ValueError("weights must have length 3.")
+        if not np.all(np.isfinite(w)):
+            raise ValueError("weights must be finite.")
         if np.any(w < 0):
             raise ValueError("weights must be non-negative.")
         s = w.sum()
@@ -261,8 +319,8 @@ class RiskAggregator:
         if not (0.0 < thresholds[0] < thresholds[1] < thresholds[2] < 1.0):
             raise ValueError("thresholds must be strictly increasing in (0, 1).")
         self.thresholds = tuple(float(t) for t in thresholds)
-        if cost_fn <= 0 or cost_fp <= 0:
-            raise ValueError("Cost weights must be positive.")
+        if not (np.isfinite(cost_fn) and np.isfinite(cost_fp)) or cost_fn <= 0 or cost_fp <= 0:
+            raise ValueError("Cost weights must be finite and positive.")
         self.cost_fn = cost_fn
         self.cost_fp = cost_fp
     # --------------------------------------------------- aggregation
@@ -291,15 +349,21 @@ class RiskAggregator:
         labels[self.thresholds[1] <= R] = self.LEVELS[2]
         labels[self.thresholds[2] <= R] = self.LEVELS[3]
         return labels
-    @staticmethod
-    def _align_three(*arrays: np.ndarray) -> tuple[np.ndarray, ...]:
+    def _align_three(self, *arrays: np.ndarray) -> tuple[np.ndarray, ...]:
+        arrays = tuple(_finite_vector(a, "risk component") for a in arrays)
+        if self.alignment_policy == "strict" and len({len(a) for a in arrays}) != 1:
+            raise ValueError(
+                "Risk components must have equal length and aligned rows. "
+                "Use alignment_policy='legacy_resample' only to reproduce the old "
+                "normalized-position resampling behavior."
+            )
         target = min(len(a) for a in arrays)
         def resample(x: np.ndarray, n: int) -> np.ndarray:
             if len(x) == n:
                 return x
             idx = np.linspace(0, len(x) - 1, n).round().astype(int)
             return x[idx]
-        return tuple(resample(np.asarray(a, dtype=float), target) for a in arrays)
+        return tuple(resample(a, target) for a in arrays)
     # --------------------------------------------- weight calibration
     def calibrate_weights(
         self,
@@ -312,19 +376,34 @@ class RiskAggregator:
         Parameters
         ----------
         R_anom_val, R_RUL_val, R_NN_val : ndarray
-            Per-sample risk components on a labeled validation set.
+            Finite per-sample risk components on the same validation rows.
+            Shape (n,) or (n, 1); unequal lengths are rejected, not resampled.
         y_val : ndarray of 0/1
             Binary failure labels.
         Returns
         -------
         w : ndarray of shape (3,)
             Calibrated weights, also assigned to `self.w`.
+        Raises
+        ------
+        RuntimeError
+            Optimization failed or returned nonfinite/invalid weights or loss.
+            The previous weights remain unchanged; `last_optimization_warning_`
+            records the reason. Successful weights must be nonnegative and sum
+            to one within absolute tolerance 1e-6 before normalization.
         """
-        anom, rul, nn = self._align_three(R_anom_val, R_RUL_val, R_NN_val)
-        y = np.asarray(y_val, dtype=float)
-        if len(y) != len(anom):
-            idx = np.linspace(0, len(y) - 1, len(anom)).round().astype(int)
-            y = y[idx]
+        anom, rul, nn = (
+            _finite_vector(values, name)
+            for values, name in zip(
+                (R_anom_val, R_RUL_val, R_NN_val),
+                ("R_anom_val", "R_RUL_val", "R_NN_val"), strict=True,
+            )
+        )
+        y = _finite_vector(y_val, "y_val")
+        if len({len(anom), len(rul), len(nn), len(y)}) != 1:
+            raise ValueError("Risk components and y_val must have equal length and aligned rows.")
+        if not np.all(np.isin(y, [0, 1])):
+            raise ValueError("y_val must contain only binary 0/1 labels.")
         stacked = np.stack([anom, rul, nn], axis=1)
         eps = 1e-9
         def loss(w: np.ndarray) -> float:
@@ -341,13 +420,21 @@ class RiskAggregator:
         bnds = [(0.0, 1.0)] * 3
         x0 = np.array([1.0 / 3, 1.0 / 3, 1.0 / 3])
         res = minimize(loss, x0, method="SLSQP", bounds=bnds, constraints=cons)
+        error = None
         if not res.success:
-            # Keep prior weights but warn via attribute; do not raise
-            # because gradient methods occasionally fail on flat regions.
-            self.last_optimization_warning_ = res.message
+            error = str(res.message)
         else:
-            self.last_optimization_warning_ = None
-        self.w = res.x / res.x.sum()
+            candidate = np.asarray(res.x, dtype=float)
+            if (candidate.shape != (3,) or not np.all(np.isfinite(candidate))
+                    or np.any(candidate < 0)
+                    or not np.isclose(candidate.sum(), 1.0, rtol=0, atol=1e-6)
+                    or not np.isfinite(res.fun)):
+                error = "Optimizer returned invalid simplex weights or a nonfinite objective."
+        if error is not None:
+            self.last_optimization_warning_ = error
+            raise RuntimeError(f"Weight calibration failed: {error}")
+        self.w = candidate / candidate.sum()
+        self.last_optimization_warning_ = None
         return self.w
 
 

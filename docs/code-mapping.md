@@ -9,13 +9,15 @@ and uses different names for better reusability.
 This document maps book names to repo names so reviewers can navigate
 between the two without confusion.
 
+This is a historical nomenclature map, not evidence that each architectural proposal is implemented.
+
 ## Core detection classes
 
 | Book name (§10.5, §7.5)        | Repo class                                            | Module                          |
 |--------------------------------|-------------------------------------------------------|---------------------------------|
 | `AnomalyDetector` (unified)    | `IsolationForestDetector`                             | `ai_cta.anomaly_detector`       |
-|                                | `LSTMDetector` (§9.4 "LSTM Autoencoder")              | `ai_cta.anomaly_detector`       |
-|                                | `HybridDetector` (§9.5 "Cascade IF → AE")             | `ai_cta.anomaly_detector`       |
+| §9.4 LSTM autoencoder proposal | `LSTMDetector` is a forecaster using prediction residuals, not an autoencoder | `ai_cta.anomaly_detector` |
+| §9.5 IF → AE cascade proposal | `HybridDetector` combines parallel IF/forecaster scores; it does not implement conditional cascade execution | `ai_cta.anomaly_detector` |
 | `Preprocessor` (unified class) | `StatisticalFeatureExtractor`                         | `ai_cta.preprocess`             |
 |                                | `RollingWindowFeatureExtractor`                       | `ai_cta.preprocess`             |
 |                                | `FrequencyDomainFeatureExtractor`                     | `ai_cta.preprocess`             |
@@ -24,8 +26,8 @@ Rationale: the book presents a single `AnomalyDetector` class to keep the
 pedagogical text concise. The actual package splits this into three
 independently testable classes (one per algorithm) to follow the
 single-responsibility principle and allow each to be used standalone.
-`HybridDetector` composes `IsolationForestDetector` + `LSTMDetector`
-exactly as §9.5 describes.
+`HybridDetector` combines `IsolationForestDetector` + `LSTMDetector` scores.
+This composition does not establish the proposed cascade's performance.
 
 ## RUL + risk model classes
 
@@ -65,8 +67,9 @@ windowed `/score-batch` endpoints can have distinct validated types.
 `ScoreResponse` is the output shape for both — equivalent to the book's
 `RiskResponse` but named to match the endpoint verb.
 
-OpenAPI 3.1 schema including all types: `api/openapi.yaml` (auto-exported
-from the running FastAPI app).
+Inspect `/openapi.json` on the running FastAPI app for its current schema.
+The checked-in `api/openapi.yaml` is a reference artifact; verify it against the
+runtime before relying on schema/version identity.
 
 ## Pipeline, data utilities
 

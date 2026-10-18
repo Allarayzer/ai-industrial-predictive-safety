@@ -1,5 +1,5 @@
 """LEGACY EXPLORATORY PROTOCOL — not the corrected PeerJ evaluation.
-See experiments/peerj/README.md for disjoint calibration/test procedures.
+See experiments/maintained/README.md for new grouped-engine evaluations.
 This historical script reuses fitting/calibration data during evaluation.
 
 Experiment E2 on REAL NASA C-MAPSS data (monograph § 13.6 alt).
@@ -28,6 +28,21 @@ import argparse
 import csv
 import pathlib
 
+
+def _parse_args() -> argparse.Namespace:
+    if __package__:
+        from ._legacy_guard import parse_legacy_args
+    else:
+        from _legacy_guard import parse_legacy_args
+
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--n-seeds", type=int, default=3)
+    return parse_legacy_args(parser)
+
+
+# Parse/guard the CLI before numerical imports, dataset access, or training.
+_CLI_ARGS = _parse_args() if __name__ == "__main__" else None
+
 import numpy as np
 import pandas as pd
 from scipy.special import expit
@@ -42,7 +57,6 @@ from ai_cta.anomaly_detector import IsolationForestDetector
 from ai_cta.risk_model import RiskAggregator
 
 DATA_DIR = pathlib.Path(__file__).parent / "data" / "cmapss"
-RESULTS_DIR = pathlib.Path(__file__).parent / "results"
 
 COL_NAMES = (
     ["unit", "cycle"]
@@ -222,14 +236,7 @@ def evaluate_config(name: str, R_stack: np.ndarray, w: np.ndarray,
 
 
 def main() -> int:
-    import warnings
-    warnings.warn(
-        "Legacy overlapping evaluation: use experiments/peerj for corrected study protocols.",
-        UserWarning, stacklevel=2,
-    )
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--n-seeds", type=int, default=3)
-    args = parser.parse_args()
+    args = _CLI_ARGS if _CLI_ARGS is not None else _parse_args()
 
     all_rows: list[dict] = []
     for seed in range(args.n_seeds):
@@ -272,9 +279,8 @@ def main() -> int:
                   f"PR-AUC={r['pr_auc']:.3f}  ROC={r['roc_auc']:.3f}  "
                   f"MCC={r['mcc']:.3f}  Lead={r['lead_time_cycles']:.1f} cycles")
 
-    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out = RESULTS_DIR / "experiment_e2_cmapss.csv"
-    with out.open("w", newline="") as f:
+    out = args.output_dir / "experiment_e2_cmapss.csv"
+    with out.open("x", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(all_rows[0].keys()))
         w.writeheader()
         w.writerows(all_rows)

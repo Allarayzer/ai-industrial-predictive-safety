@@ -4,6 +4,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased] — 1.2.2.dev0
 ### Fixed
+- Conformal calibration uses the exact finite-sample order statistic instead of
+  conservative interpolation; online batches reject invalid scores atomically.
+  Regime decisions reject nonfinite scores and incompatible shapes.
+- Fusion now requires aligned lengths, and rule scoring requires configured
+  channels. Historical behavior requires explicit `legacy_resample` or
+  `legacy_ignore` policies; these defaults are intentional compatibility changes.
+- Normalized RUL aggregation preserves untouched subsets during partial reruns,
+  validates schemas and values, and replaces each output CSV atomically.
+- Maintained runners reject incompatible resume using data/source/environment
+  provenance; multi-seed inference pairs by seed and handles ties/missing pairs.
+  E2 forwards seeds to every model and reports missing warnings explicitly.
+- E5 reports censoring rather than turning non-detection into an event, uses
+  minute timestamps, and distinguishes periodic scheduling from drift detection.
+- Binary metrics and weight calibration normalize vector/column labels and reject
+  invalid inputs. Weight-calibration costs must be finite and positive. Failed
+  optimization now raises `RuntimeError` while retaining the previous weights;
+  invalid optimizer outputs are rejected before any weights are replaced.
+- RUL ensemble tuning preserves the active-model simplex and requires elapsed
+  cycles when the physics component is used. RUL horizon scores preserve the
+  upper quantile level instead of jumping to one; invalid quantile grids fail
+  explicitly.
+- Constant-channel PSI remains sensitive to shifts; nonfinite calibration and
+  future-dated fusion observations are rejected instead of yielding silent decisions.
+- REST input validation returns 422 for invalid timestamps and nonfinite values;
+  webhook HTTP errors are logged. The demo n8n service uses regular execution
+  mode, and the unavailable API metrics target is no longer advertised.
+- Maintained C-MAPSS paths use engine-grouped windows and held-out validation;
+  E5 timestamps reflect window availability, and Bosch uses calendar splits and
+  exact pooled outcomes. Historical reference results are unchanged.
 - Single-reading REST requests now reach the detector's final window; omitted
   timestamps receive a UTC value instead of the string `None`.
 - Quantile and asymmetric-BCE losses preserve sample pairing for both vector
@@ -11,6 +40,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Package version is read from `_version.py`; citation metadata distinguishes
   development code from the archived v1.1.0 DOI.
 ### Added
+- A bounded FD001 diagnostic runner with equal window context across four model
+  families, acquisition-manifest checks, engine-level predictions, conditional
+  bootstrap intervals, and saved source/environment provenance.
+- Explicit opt-in and fresh output directories for six historical benchmark
+  CLIs with known scientific limitations; archived source snapshots stay unchanged.
+- Separate maintained experiment runners and regression checks for numerical,
+  temporal, and input-validation failures. These define new runs, not replacement
+  manuscript metrics or a replay of the frozen PeerJ snapshot.
 - Optional held-out composite-risk calibration in `SafetyPipeline`, with a
   three-stream example and strict conformal threshold decisions for callbacks.
 - HTTP, adaptive-pipeline, and TensorFlow numerical/integration regression tests.

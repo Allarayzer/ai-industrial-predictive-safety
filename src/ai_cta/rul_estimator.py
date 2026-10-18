@@ -106,11 +106,28 @@ class RULEstimator(BaseEstimator):
         if list(self.quantiles) != sorted(self.quantiles):
             raise ValueError("Quantiles must be sorted ascending.")
     def _make_windows(
-        self, X: np.ndarray, y: np.ndarray | None
+        self, X: np.ndarray, y: np.ndarray | None, groups: np.ndarray | None = None
     ) -> tuple[np.ndarray, np.ndarray | None]:
         """Convert a (T, d) trajectory into sliding (window_size, d) inputs.
         For each window ending at time t, the target is the RUL at t.
+        With groups, row order within each unit must already be chronological.
         """
+        if groups is not None:
+            groups = np.asarray(groups)
+            if groups.ndim != 1 or len(groups) != len(X) or pd.isna(groups).any():
+                raise ValueError("groups must contain one non-missing unit ID per row.")
+            windows, targets = [], []
+            for group in pd.unique(groups):
+                mask = groups == group
+                if mask.sum() < self.window_size:
+                    continue
+                xs, ys = self._make_windows(X[mask], None if y is None else y[mask])
+                windows.append(xs)
+                if ys is not None:
+                    targets.append(ys)
+            if not windows:
+                raise ValueError(f"No group has at least {self.window_size} samples.")
+            return np.concatenate(windows), np.concatenate(targets) if y is not None else None
         n = len(X)
         if n < self.window_size:
             raise ValueError(
@@ -129,6 +146,9 @@ class RULEstimator(BaseEstimator):
         self,
         X: pd.DataFrame,
         y: np.ndarray,
+        *,
+        groups: np.ndarray | None = None,
+        validation_data: tuple | None = None,
     ) -> RULEstimator:
         """Fit the quantile regressor.
         Parameters
@@ -137,6 +157,14 @@ class RULEstimator(BaseEstimator):
             Numeric sensor channels.
         y : array-like of shape (n_samples,)
             RUL value for each timestep (in cycles or time units).
+        groups : array-like, optional
+            Unit IDs aligned with X. Windows never cross unit boundaries.
+            Without explicit validation_data, validation_split reserves whole
+            units before fitting the scaler and constructing windows.
+        validation_data : tuple, optional
+            (X_val, y_val) for a single trajectory, or (X_val, y_val, groups_val).
+            Grouped fitting requires disjoint validation unit IDs. Explicit
+            validation replaces validation_split and never fits the scaler.
         """
         self._validate_quantiles()
         try:
@@ -146,8 +174,7 @@ class RULEstimator(BaseEstimator):
                 "RULEstimator requires tensorflow. "
                 "Install it via `pip install tensorflow`."
             ) from exc
-        tf.random.set_seed(self.random_state)
-        np.random.seed(self.random_state)
+        tf.keras.utils.set_random_seed(self.random_state)
         if not isinstance(X, pd.DataFrame):
             raise TypeError("X must be a pandas DataFrame.")
         self.channels_ = list(X.select_dtypes(include="number").columns)
@@ -155,16 +182,69 @@ class RULEstimator(BaseEstimator):
             raise ValueError("No numeric channels found in input.")
         values = X[self.channels_].to_numpy(dtype=np.float32)
         y_arr = np.asarray(y, dtype=np.float32)
+        if y_arr.ndim == 2 and y_arr.shape[1] == 1:
+            y_arr = y_arr[:, 0]
+        if y_arr.ndim != 1 or not np.isfinite(y_arr).all() or not np.isfinite(values).all():
+            raise ValueError("X and one-dimensional y must contain finite values.")
         if len(y_arr) != len(values):
             raise ValueError(
                 f"X has {len(values)} rows but y has {len(y_arr)}."
             )
+        if groups is not None:
+            groups = np.asarray(groups)
+            if groups.ndim != 1 or len(groups) != len(values) or pd.isna(groups).any():
+                raise ValueError("groups must contain one non-missing unit ID per row.")
+        val_values = val_y = val_groups = None
+        if validation_data is not None:
+            if len(validation_data) not in (2, 3):
+                raise ValueError("validation_data must be (X_val, y_val[, groups_val]).")
+            val_X, val_y = validation_data[:2]
+            if not isinstance(val_X, pd.DataFrame) or not set(self.channels_).issubset(val_X.columns):
+                raise ValueError("Validation X must be a DataFrame with the training channels.")
+            val_values = val_X[self.channels_].to_numpy(dtype=np.float32)
+            val_y = np.asarray(val_y, dtype=np.float32)
+            if val_y.ndim == 2 and val_y.shape[1] == 1:
+                val_y = val_y[:, 0]
+            if val_y.ndim != 1 or not np.isfinite(val_y).all() or not np.isfinite(val_values).all():
+                raise ValueError("Validation X and one-dimensional y must contain finite values.")
+            if len(val_y) != len(val_values):
+                raise ValueError("Validation X and y must have the same number of rows.")
+            if len(validation_data) == 3:
+                val_groups = np.asarray(validation_data[2])
+                if (val_groups.ndim != 1 or len(val_groups) != len(val_values)
+                        or pd.isna(val_groups).any()):
+                    raise ValueError("Validation groups need one non-missing unit ID per row.")
+            if groups is not None:
+                if val_groups is None:
+                    raise ValueError("Grouped validation needs disjoint validation group IDs.")
+                if np.isin(groups, val_groups).any():
+                    raise ValueError("Training and validation groups must be disjoint.")
+        elif groups is not None and self.validation_split > 0:
+            if not 0 < self.validation_split < 1:
+                raise ValueError("validation_split must be between 0 and 1.")
+            units = pd.unique(groups).copy()
+            if len(units) < 2:
+                raise ValueError("Grouped validation needs at least two disjoint units.")
+            np.random.default_rng(self.random_state).shuffle(units)
+            n_val = min(len(units) - 1, max(1, int(np.ceil(len(units) * self.validation_split))))
+            is_val = np.isin(groups, units[:n_val])
+            val_values, val_y, val_groups = values[is_val], y_arr[is_val], groups[is_val]
+            values, y_arr, groups = values[~is_val], y_arr[~is_val], groups[~is_val]
         # Clip RUL — large values are not useful for prediction and bias
         # the loss toward the easy-to-predict early portion of life.
         y_arr = np.minimum(y_arr, self.rul_max)
         self._scaler = StandardScaler().fit(values)
         scaled = self._scaler.transform(values).astype(np.float32)
-        xs, ys = self._make_windows(scaled, y_arr)
+        xs, ys = self._make_windows(scaled, y_arr, groups)
+        fit_validation = {}
+        if val_values is not None:
+            val_scaled = self._scaler.transform(val_values).astype(np.float32)
+            val_windows, val_targets = self._make_windows(
+                val_scaled, np.minimum(val_y, self.rul_max), val_groups
+            )
+            fit_validation["validation_data"] = (val_windows, val_targets)
+        else:
+            fit_validation["validation_split"] = self.validation_split
         self.model_ = self._build_model(n_channels=len(self.channels_))
         callbacks = [
             tf.keras.callbacks.EarlyStopping(
@@ -176,7 +256,7 @@ class RULEstimator(BaseEstimator):
             ys,
             epochs=self.epochs,
             batch_size=self.batch_size,
-            validation_split=self.validation_split,
+            **fit_validation,
             callbacks=callbacks,
             verbose=0,
         ).history
@@ -244,10 +324,14 @@ class RULEstimator(BaseEstimator):
         X: pd.DataFrame,
         horizon: float,
     ) -> np.ndarray:
-        """Compute R_RUL(t; horizon) — the probability that RUL ≤ horizon.
+        """Compute a CDF-like R_RUL(t; horizon) score from predicted quantiles.
         Implements the risk component R_RUL described in monograph § 8.3.2.
-        Estimated via piecewise-linear interpolation of the empirical CDF
-        defined by the predicted quantiles.
+        Interpolate between finite, nonnegative, nondecreasing quantile
+        predictions. Below the first quantile, interpolate from (0, 0).
+        At or above the last quantile, keep its probability level: the
+        unmodelled upper tail does not justify jumping to probability one.
+        Tied predictions use the rightmost quantile level at that value.
+        These tail conventions do not provide probability calibration.
         Parameters
         ----------
         X : DataFrame
@@ -257,30 +341,37 @@ class RULEstimator(BaseEstimator):
         Returns
         -------
         risk : ndarray of shape (n_windows,)
-            Probabilities in [0, 1] that the unit will fail within
-            `horizon` time units.
+            CDF-like scores in [0, 1] at `horizon` time units.
         """
-        if horizon < 0:
-            raise ValueError("horizon must be non-negative.")
+        if not np.isfinite(horizon) or horizon < 0:
+            raise ValueError("horizon must be finite and non-negative.")
         preds = self.predict_quantiles(X)
         sorted_qs = sorted(preds.keys())
-        n = len(next(iter(preds.values())))
+        if not sorted_qs or any(not 0 < q < 1 for q in sorted_qs):
+            raise ValueError("Predicted quantile levels must be in (0, 1).")
+        columns = []
+        for q in sorted_qs:
+            values = np.asarray(preds[q], dtype=float)
+            if values.ndim == 2 and values.shape[1] == 1:
+                values = values[:, 0]
+            if values.ndim != 1:
+                raise ValueError("Quantile predictions must have shape (n,) or (n, 1).")
+            columns.append(values)
+        if len({len(values) for values in columns}) != 1:
+            raise ValueError("Quantile predictions must have equal length.")
+        quantile_values = np.column_stack(columns)
+        if not np.all(np.isfinite(quantile_values)) or np.any(quantile_values < 0):
+            raise ValueError("Quantile predictions must be finite and non-negative.")
+        if np.any(np.diff(quantile_values, axis=1) < 0):
+            raise ValueError("Quantile predictions must be nondecreasing; found crossing quantiles.")
+        n = len(quantile_values)
         risk = np.zeros(n, dtype=np.float32)
-        for i in range(n):
-            # quantile values for this window, in ascending quantile order
-            quant_vals = np.array([preds[q][i] for q in sorted_qs])
-            # P(RUL <= horizon) is interpolated against the inverse CDF.
-            # quant_vals are RUL values at quantile levels sorted_qs.
-            # If horizon is below the smallest quant_val, P~0; above the
-            # largest, P~1; in between, linear interpolation.
-            if horizon <= quant_vals[0]:
-                p = float(sorted_qs[0]) * (horizon / max(quant_vals[0], 1e-9))
-            elif horizon >= quant_vals[-1]:
-                p = 1.0 - (1.0 - float(sorted_qs[-1])) * (
-                    1.0 - min(horizon / max(quant_vals[-1], 1e-9), 1.0)
-                )
-                p = min(p, 1.0)
+        for i, quant_vals in enumerate(quantile_values):
+            if horizon < quant_vals[0]:
+                p = float(sorted_qs[0]) * horizon / quant_vals[0]
             else:
+                # np.interp uses the rightmost level for ties and keeps the
+                # last level beyond the observed quantiles (upper plateau).
                 p = float(np.interp(horizon, quant_vals, sorted_qs))
             risk[i] = float(np.clip(p, 0.0, 1.0))
         return risk
